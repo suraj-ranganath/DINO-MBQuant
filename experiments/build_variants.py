@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 from typing import Dict, Any
 
 import yaml
 
 from experiments.dino_runner import run_variant_once
+from experiments.run_paths import resolve_path
 
 
 def load_cfg(path: str) -> Dict[str, Any]:
@@ -18,10 +18,26 @@ def load_cfg(path: str) -> Dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build and sanity-check FP16/INT8 variants.")
     parser.add_argument("--config", default="configs/experiment_config.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under configured output roots.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow writing into an existing run folder (for resume/continuation).",
+    )
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
-    variants_root = Path(cfg["paths"]["variants_root"]).resolve()
+    variants_root = resolve_path(cfg, key="variants_root", run_name=args.run_name)
+    if args.run_name and variants_root.exists() and not args.allow_existing:
+        raise SystemExit(
+            f"Run folder already exists: {variants_root}\n"
+            "Choose a new --run-name, or pass --allow-existing to continue."
+        )
     sanity = cfg["sanity"]
 
     for variant_name in cfg["variants"].keys():

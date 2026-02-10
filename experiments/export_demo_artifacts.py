@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Tuple
 
 import yaml
 
+from experiments.run_paths import resolve_path
+
 
 def load_cfg(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
@@ -43,16 +45,39 @@ def score_episode(idx: int, per_variant: Dict[str, Dict[str, Any]]) -> Tuple[int
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export replay artifacts for Streamlit demo.")
     parser.add_argument("--config", default="configs/experiment_config.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under configured output roots.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow writing into an existing run folder (for resume/continuation).",
+    )
+    parser.add_argument(
+        "--budget-id",
+        default=None,
+        help="Optional budget id used when runs are stored as variant/budget_<id>/seed_<seed>.",
+    )
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
     demo_cfg = cfg["demo"]
-    wall_root = Path(cfg["paths"]["wall_root"]).resolve()
-    artifacts_root = Path(cfg["paths"]["demo_artifacts_root"]).resolve()
+    wall_root = resolve_path(cfg, key="wall_root", run_name=args.run_name)
+    artifacts_root = resolve_path(cfg, key="demo_artifacts_root", run_name=args.run_name)
+    if args.run_name and artifacts_root.exists() and not args.allow_existing:
+        if any(artifacts_root.iterdir()):
+            raise SystemExit(
+                f"Run folder already exists: {artifacts_root}\n"
+                "Choose a new --run-name, or pass --allow-existing to continue."
+            )
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
     ref_opt = int(demo_cfg["reference_opt_steps"])
     ref_seed = int(demo_cfg["reference_seed"])
+    ref_budget = args.budget_id or demo_cfg.get("reference_budget_id")
     candidate_pool = int(demo_cfg.get("candidate_pool", 30))
     episode_count = int(demo_cfg.get("episode_count", 10))
 
@@ -60,7 +85,10 @@ def main() -> None:
     episodes_by_variant: Dict[str, Dict[int, Dict[str, Any]]] = {}
 
     for variant in variants:
-        run_dir = wall_root / variant / f"opt_steps_{ref_opt}" / f"seed_{ref_seed}"
+        if ref_budget:
+            run_dir = wall_root / variant / f"budget_{ref_budget}" / f"seed_{ref_seed}"
+        else:
+            run_dir = wall_root / variant / f"opt_steps_{ref_opt}" / f"seed_{ref_seed}"
         if not run_dir.exists():
             raise SystemExit(f"Missing run dir for demo export: {run_dir}")
         episodes = parse_episode_videos(run_dir)

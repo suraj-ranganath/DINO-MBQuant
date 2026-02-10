@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Any, Dict
 
 import pandas as pd
 import yaml
+
+from experiments.run_paths import run_scoped_file
 
 
 def load_cfg(path: str) -> Dict[str, Any]:
@@ -16,18 +17,34 @@ def load_cfg(path: str) -> Dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate copy-ready markdown snippets for paper writing.")
     parser.add_argument("--config", default="configs/experiment_config.mac.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under output paths.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow overwriting existing notes for the same run-name.",
+    )
     parser.add_argument("--summary", default="results/summary.csv")
     parser.add_argument("--grouped", default="results/summary_grouped.csv")
     parser.add_argument("--out", default="notes/paper_numbers.md")
+    parser.add_argument(
+        "--budget-id",
+        default=None,
+        help="Optional budget id filter when summary contains multiple budgets.",
+    )
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
     labels = cfg.get("labels", {})
 
-    summary_path = Path(args.summary)
+    summary_path = run_scoped_file(args.summary, run_name=args.run_name)
     if not summary_path.exists():
         raise SystemExit(f"Missing summary file: {summary_path}")
-    grouped_path = Path(args.grouped)
+    grouped_path = run_scoped_file(args.grouped, run_name=args.run_name)
     if not grouped_path.exists():
         raise SystemExit(f"Missing grouped summary file: {grouped_path}")
 
@@ -37,6 +54,13 @@ def main() -> None:
     grouped_df = pd.read_csv(grouped_path)
     if grouped_df.empty:
         raise SystemExit("Grouped summary is empty.")
+
+    if args.budget_id and "budget_id" in df.columns:
+        df = df[df["budget_id"] == args.budget_id].copy()
+    if args.budget_id and "budget_id" in grouped_df.columns:
+        grouped_df = grouped_df[grouped_df["budget_id"] == args.budget_id].copy()
+    if df.empty:
+        raise SystemExit("No rows left after applying filters.")
 
     grouped = (
         df.groupby(["variant", "opt_steps"], as_index=False)
@@ -107,8 +131,13 @@ def main() -> None:
         )
     )
 
-    out_path = Path(args.out)
+    out_path = run_scoped_file(args.out, run_name=args.run_name)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.exists() and not args.allow_existing:
+        raise SystemExit(
+            f"Summary note already exists: {out_path}\n"
+            "Choose a new --run-name, a new --out path, or pass --allow-existing."
+        )
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"Wrote {out_path}")
 

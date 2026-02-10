@@ -10,6 +10,17 @@ from experiments.dino_runner import run_variant_once
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run FP16 Wall baseline and emit baseline metrics JSON.")
     parser.add_argument("--config", default="configs/experiment_config.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name under results/baseline.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow writing into an existing run folder (for resume/continuation).",
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--opt-steps", type=int, default=None)
     parser.add_argument("--n-evals", type=int, default=None)
@@ -23,7 +34,15 @@ def main() -> None:
     opt_steps = int(eval_cfg["opt_steps"][0] if args.opt_steps is None else args.opt_steps)
     n_evals = int(eval_cfg["n_evals"] if args.n_evals is None else args.n_evals)
 
-    run_dir = Path("results/baseline/fp16").resolve()
+    run_dir = Path("results/baseline")
+    if args.run_name:
+        run_dir = run_dir / args.run_name
+    run_dir = (run_dir / "fp16").resolve()
+    if args.run_name and run_dir.exists() and not args.allow_existing:
+        raise SystemExit(
+            f"Run folder already exists: {run_dir}\n"
+            "Choose a new --run-name, or pass --allow-existing to continue."
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     metrics, trace = run_variant_once(

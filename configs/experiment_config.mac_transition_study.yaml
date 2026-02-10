@@ -1,0 +1,141 @@
+project_root: .
+
+dino:
+  repo_path: ./third_party_dino_wm
+  plan_config_name: plan_wall.yaml
+  ckpt_base_path: /Users/suraj/Downloads
+  model_name: wall_single
+  model_epoch: latest
+
+quantization:
+  backend: fake_int8
+  fallback_backend: fake_int8
+
+variants:
+  fp16:
+    quantize_targets: []
+
+  uniform_int8:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 8
+  mixed_int8:
+    quantize_targets: [predictor]
+    quant_bits: 8
+
+  uniform_int4:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+  mixed_int4:
+    quantize_targets: [predictor]
+    quant_bits: 4
+
+  uniform_int3:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 3
+  mixed_int3:
+    quantize_targets: [predictor]
+    quant_bits: 3
+
+  # INT4 layerwise encoder-retention variants (predictor fixed INT4):
+  # encfp16_0:  0% encoder FP16 (uniform INT4)
+  # encfp16_25: keep last 25% encoder blocks FP16
+  # encfp16_50: keep last 50% encoder blocks FP16
+  # encfp16_75: keep last 75% encoder blocks FP16
+  # encfp16_100: 100% encoder FP16 (mixed INT4)
+  encfp16_0:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+  encfp16_25:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+    encoder_exclude_paths:
+      - base_model.blocks.9
+      - base_model.blocks.10
+      - base_model.blocks.11
+  encfp16_50:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+    encoder_exclude_paths:
+      - base_model.blocks.6
+      - base_model.blocks.7
+      - base_model.blocks.8
+      - base_model.blocks.9
+      - base_model.blocks.10
+      - base_model.blocks.11
+  encfp16_75:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+    encoder_exclude_paths:
+      - base_model.blocks.3
+      - base_model.blocks.4
+      - base_model.blocks.5
+      - base_model.blocks.6
+      - base_model.blocks.7
+      - base_model.blocks.8
+      - base_model.blocks.9
+      - base_model.blocks.10
+      - base_model.blocks.11
+  encfp16_100:
+    quantize_targets: [predictor]
+    quant_bits: 4
+
+evaluation:
+  n_evals: 10
+  seeds: [1, 2, 3]
+  goal_source: file
+  goal_H: 9
+  planner_max_iter: 2
+  render_videos: false
+  goal_file_path_template: results/paired_targets/{run_name}/budget_{budget_id}/seed_{seed}/plan_targets.pkl
+
+  budget_grid:
+    - id: bA
+      goal_H: 9
+      opt_steps: 2
+      planner_max_iter: 2
+      seeds: [1, 2, 3]
+      goal_source: file
+    - id: bB
+      goal_H: 12
+      opt_steps: 3
+      planner_max_iter: 3
+      seeds: [1, 2]
+      goal_source: file
+
+paired_targets:
+  root: results/paired_targets
+  generator_variant: fp16
+  generator_opt_steps: 1
+
+paths:
+  variants_root: results/variants_transition
+  wall_root: results/wall_transition
+  figures_root: figures_transition
+  demo_artifacts_root: demo/demo_artifacts_transition
+
+sanity:
+  n_evals: 1
+  seed: 1
+  opt_steps: 2
+
+demo:
+  reference_budget_id: bA
+  reference_opt_steps: 2
+  reference_seed: 1
+  candidate_pool: 10
+  episode_count: 4
+
+labels:
+  fp16: FP16
+  uniform_int8: Uniform INT8
+  mixed_int8: Mixed INT8 (enc FP16)
+  uniform_int4: Uniform INT4
+  mixed_int4: Mixed INT4 (enc FP16)
+  uniform_int3: Uniform INT3
+  mixed_int3: Mixed INT3 (enc FP16)
+  encfp16_0: INT4 (0% enc FP16)
+  encfp16_25: INT4 (25% enc FP16)
+  encfp16_50: INT4 (50% enc FP16)
+  encfp16_75: INT4 (75% enc FP16)
+  encfp16_100: INT4 (100% enc FP16)
+
