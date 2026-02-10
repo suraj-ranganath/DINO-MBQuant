@@ -95,6 +95,19 @@ def _build_variant_overrides(config: Dict[str, Any], seed: int, opt_steps: int, 
     return overrides
 
 
+def _parse_dtype(name: Optional[str]) -> Optional[torch.dtype]:
+    if not name:
+        return None
+    norm = str(name).strip().lower()
+    if norm in {"float16", "fp16", "half"}:
+        return torch.float16
+    if norm in {"bfloat16", "bf16"}:
+        return torch.bfloat16
+    if norm in {"float32", "fp32"}:
+        return torch.float32
+    raise ValueError(f"Unsupported dtype string: {name}")
+
+
 def run_variant_once(
     config_path: str,
     variant_name: str,
@@ -127,6 +140,9 @@ def run_variant_once(
     quant_cfg = config.get("quantization", {})
     quant_backend = quant_cfg.get("backend", "bitsandbytes")
     fallback_backend = quant_cfg.get("fallback_backend", "fake_int8")
+    bnb_4bit_quant_type = str(quant_cfg.get("bnb_4bit_quant_type", "nf4"))
+    bnb_4bit_compute_dtype = _parse_dtype(quant_cfg.get("bnb_4bit_compute_dtype"))
+    bnb_4bit_use_double_quant = bool(quant_cfg.get("bnb_4bit_use_double_quant", True))
     requested_quant_bits = int(variant_cfg.get("quant_bits", quant_cfg.get("quant_bits", 8)))
     target_bits_overrides = variant_cfg.get("quant_bits_by_target", {}) or {}
     render_videos = bool(eval_cfg.get("render_videos", False))
@@ -163,6 +179,9 @@ def run_variant_once(
                 backend=quant_backend,
                 fallback_backend=fallback_backend,
                 quant_bits=target_bits,
+                bnb_4bit_quant_type=bnb_4bit_quant_type,
+                bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
+                bnb_4bit_use_double_quant=bnb_4bit_use_double_quant,
             )
             quantized_paths.extend([f"{target_name}.{p}" for p in report.quantized_layer_paths])
             skipped_paths.extend([f"{target_name}.{p}" for p in report.skipped_layer_paths])

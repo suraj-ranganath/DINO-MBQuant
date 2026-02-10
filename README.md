@@ -100,6 +100,19 @@ Key outputs:
 
 Note: ES-Reasoning Tiny paper formatting can be targeted to 5 pages including references, with unlimited appendix for additional ablations.
 
+## GPU Quantization Pipeline (CUDA + bitsandbytes)
+
+Use this on a CUDA machine (e.g., A6000/A100/RTX 5090) to run real INT8/INT4 weight-only quantization:
+
+```bash
+pip install -r requirements-gpu.txt
+export DATASET_DIR=/ABS/PATH/TO/data
+export DINO_WM_DEVICE=cuda
+bash scripts/run_transition_pipeline_gpu.sh configs/experiment_config.gpu_transition_study.yaml my_transition_gpu_run
+```
+
+This uses bitsandbytes for INT8/INT4 and falls back to a lightweight weight-only quantizer for INT3/unsupported cases.
+
 ## Notes
 - Use GPU (A6000/A100) for experiment runs.
 - Use Mac for replay demo and paper finalization.

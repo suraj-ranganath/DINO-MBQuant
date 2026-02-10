@@ -127,15 +127,65 @@ def _to_bnb_int8(linear: nn.Linear) -> nn.Module:
     return quant
 
 
+def _to_bnb_int4(
+    linear: nn.Linear,
+    *,
+    quant_type: str = "nf4",
+    compute_dtype: Optional[torch.dtype] = None,
+    use_double_quant: bool = True,
+) -> nn.Module:
+    import bitsandbytes as bnb  # type: ignore
+
+    linear_cls = getattr(bnb.nn, "Linear4bit", None)
+    if linear_cls is None:
+        raise RuntimeError("bitsandbytes.nn.Linear4bit not found")
+
+    kwargs = {}
+    sig = inspect.signature(linear_cls)
+    if "quant_type" in sig.parameters:
+        kwargs["quant_type"] = quant_type
+    if "compute_dtype" in sig.parameters and compute_dtype is not None:
+        kwargs["compute_dtype"] = compute_dtype
+    if "compress_statistics" in sig.parameters:
+        kwargs["compress_statistics"] = bool(use_double_quant)
+
+    quant = linear_cls(
+        linear.in_features,
+        linear.out_features,
+        bias=linear.bias is not None,
+        **kwargs,
+    )
+    quant = quant.to(device=linear.weight.device)
+    quant.load_state_dict(linear.state_dict(), strict=False)
+    return quant
+
+
 def _quantize_linear(
     linear: nn.Linear,
     backend: str,
     fallback_backend: str,
     quant_bits: int = 8,
+    bnb_4bit_quant_type: str = "nf4",
+    bnb_4bit_compute_dtype: Optional[torch.dtype] = None,
+    bnb_4bit_use_double_quant: bool = True,
 ) -> Tuple[nn.Module, str]:
     if backend == "bitsandbytes" and int(quant_bits) == 8:
         try:
             return _to_bnb_int8(linear), "bitsandbytes"
+        except Exception:
+            if fallback_backend != "fake_int8":
+                raise
+    if backend == "bitsandbytes" and int(quant_bits) == 4:
+        try:
+            return (
+                _to_bnb_int4(
+                    linear,
+                    quant_type=bnb_4bit_quant_type,
+                    compute_dtype=bnb_4bit_compute_dtype,
+                    use_double_quant=bnb_4bit_use_double_quant,
+                ),
+                "bitsandbytes_4bit",
+            )
         except Exception:
             if fallback_backend != "fake_int8":
                 raise
@@ -151,6 +201,9 @@ def apply_int8_to_linears(
     backend: str = "bitsandbytes",
     fallback_backend: str = "fake_int8",
     quant_bits: int = 8,
+    bnb_4bit_quant_type: str = "nf4",
+    bnb_4bit_compute_dtype: Optional[torch.dtype] = None,
+    bnb_4bit_use_double_quant: bool = True,
 ) -> QuantizeReport:
     quantized: List[str] = []
     skipped: List[str] = []
@@ -167,6 +220,9 @@ def apply_int8_to_linears(
                         backend=backend,
                         fallback_backend=fallback_backend,
                         quant_bits=int(quant_bits),
+                        bnb_4bit_quant_type=bnb_4bit_quant_type,
+                        bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
+                        bnb_4bit_use_double_quant=bnb_4bit_use_double_quant,
                     )
                     chosen_backend = used_backend if used_backend != backend else chosen_backend
                     setattr(parent, child_name, quantized_child)
