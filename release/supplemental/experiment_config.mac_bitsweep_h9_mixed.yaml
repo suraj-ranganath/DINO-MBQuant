@@ -1,0 +1,91 @@
+project_root: .
+
+dino:
+  repo_path: ./third_party_dino_wm
+  plan_config_name: plan_wall.yaml
+  ckpt_base_path: /Users/suraj/Downloads
+  model_name: wall_single
+  model_epoch: latest
+
+quantization:
+  backend: fake_int8
+  fallback_backend: fake_int8
+
+variants:
+  fp16:
+    quantize_targets: []
+
+  uniform_int8:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 8
+  mixed_int8:
+    quantize_targets: [predictor]
+    quant_bits: 8
+
+  uniform_int4:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+  mixed_int4:
+    quantize_targets: [predictor]
+    quant_bits: 4
+
+  uniform_int3:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 3
+  mixed_int3:
+    quantize_targets: [predictor]
+    quant_bits: 3
+
+  mixed_e8_p4:
+    quantize_targets: [encoder, predictor]
+    quant_bits_by_target:
+      encoder: 8
+      predictor: 4
+  mixed_e8_p3:
+    quantize_targets: [encoder, predictor]
+    quant_bits_by_target:
+      encoder: 8
+      predictor: 3
+  mixed_e4_p3:
+    quantize_targets: [encoder, predictor]
+    quant_bits_by_target:
+      encoder: 4
+      predictor: 3
+
+evaluation:
+  opt_steps: [2]
+  seeds: [1, 2]
+  n_evals: 6
+  goal_source: random_state
+  goal_H: 9
+  planner_max_iter: 2
+  render_videos: false
+
+paths:
+  variants_root: results/variants
+  wall_root: results/wall_bitsweep_h9_mixed
+  figures_root: figures_bitsweep_h9_mixed
+  demo_artifacts_root: demo/demo_artifacts_bitsweep_h9_mixed
+
+sanity:
+  n_evals: 1
+  seed: 1
+  opt_steps: 2
+
+demo:
+  reference_opt_steps: 2
+  reference_seed: 1
+  candidate_pool: 8
+  episode_count: 4
+
+labels:
+  fp16: FP16
+  uniform_int8: Uniform INT8
+  mixed_int8: Mixed INT8 (enc FP16)
+  uniform_int4: Uniform INT4
+  mixed_int4: Mixed INT4 (enc FP16)
+  uniform_int3: Uniform INT3
+  mixed_int3: Mixed INT3 (enc FP16)
+  mixed_e8_p4: Mixed E8/P4
+  mixed_e8_p3: Mixed E8/P3
+  mixed_e4_p3: Mixed E4/P3

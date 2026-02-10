@@ -5,119 +5,118 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{url}
-\usepackage{float}
 
-\title{Encoder-Preserving Mixed-Precision Quantization for DINO-WM under a Tiny Compute Budget}
-
+\title{Where Do Bits Matter in World Models?\\A Tiny M4 Study of Encoder-Preserving Quantization for DINO-WM Planning}
 \author{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We study weight-only quantization for planning in visual world models under a strict tiny-paper budget (single environment, three model variants, minimal sweep, and replayable demo).
-Using DINO-WM on Wall, we compare FP16, uniform INT8 (encoder + predictor), and encoder-preserving mixed INT8 (predictor-only INT8).
-Across opt\_steps $\{10,30\}$ in our Mac MPS setting, all variants reach identical success, so accuracy does not separate methods in this regime.
-However, memory footprint changes substantially: relative to FP16, uniform INT8 reduces model size by 57.2\% and mixed INT8 by 27.6\%.
-To obtain true Apple-side acceleration, we benchmark an Apple-native CoreML path and find 1.76--1.79$\times$ predictor speedup over the PyTorch MPS baseline, with INT8 CoreML packages 49.6\% smaller than FP16.
-We provide a reproducible pipeline and replay viewer, and we discuss why backend-specific kernels matter for practical quantized planning.
+Efficient spatial reasoning requires world models that remain reliable under strict memory and compute budgets.
+We study this problem on DINO-WM planning in Wall with a Mac-only, workshop-scale protocol, sweeping ten weight-only low-bit variants across uniform and mixed precision designs.
+Our central hypothesis is that near the low-bit failure frontier, preserving encoder precision is more important than uniformly reducing all modules.
+The results show a clear regime pattern: 8-bit variants match FP16 success (0.50), 3-bit variants collapse (0.00), and 4-bit is the transition regime where precision allocation matters.
+At 4-bit, encoder-preserving mixed quantization (encoder FP16, predictor INT4) reaches 0.167 success versus 0.083 for uniform INT4 under the same planning budget.
+These preliminary findings motivate a broader research direction on module-aware precision allocation for robust and efficient world-model planning.
 \end{abstract}
 
 \section{Introduction}
-Spatial planning with world models is increasingly attractive because control can be optimized in latent space instead of raw pixels \citep{ha2018worldmodels,hafner2018planet,hafner2019dreamer,hafner2023dreamerv3,hafner2025naturedreamer}.  
-At the same time, deployment constraints motivate model compression, and post-training quantization has become a standard tool in large-scale inference systems \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.  
-For world models specifically, recent evidence suggests that quantization behavior depends strongly on architectural role and downstream planning objective \citep{fu2026quantwm}.
+World-model planning is attractive for efficient spatial reasoning because control is optimized in latent space rather than directly in pixels.
+Recent systems show strong planning behavior when representation quality is preserved \citep{zhou2024dinowm,oquab2023dinov2}.
+At the same time, low-bit quantization is now a default deployment tool, and broad surveys report that many models remain robust at moderate precision before degrading sharply in ultra-low-bit regimes \citep{liu2025lowbitmodelquantizationdeep}.
+Recent world-model-specific evidence further suggests that quantization sensitivity differs across modules \citep{fu2026quantwm}.
 
-We focus on DINO-WM \citep{zhou2024dinowm}, which uses pretrained visual features from DINOv2 \citep{oquab2023dinov2}.  
-Our central question is simple: under a minimal engineering budget, does preserving encoder precision provide a better efficiency--quality tradeoff than uniform quantization?
+This motivates a concrete workshop question: for world-model planning, is the key decision merely \emph{how many bits}, or also \emph{where those bits are allocated}?
+We focus on the encoder/predictor split in DINO-WM and test the hypothesis that representation modules should keep higher precision near the low-bit frontier.
+The study is intentionally small and reproducible on consumer hardware (M4 Mac), designed to provide a clear empirical signal and a publishable starting point for larger follow-up work.
 
-\textbf{Contributions.}
+\paragraph{Contributions.}
 \begin{itemize}
-\item We implement a reproducible quantization pipeline for DINO-WM with three variants: FP16, uniform INT8, and encoder-preserving mixed INT8.
-\item We provide a compact Wall-only benchmark and a Mac-friendly replay demo suitable for workshop artifact review.
-\item We report that, in the current Wall regime, success saturates at 100\% for all variants, while memory and latency diverge substantially.
+  \item We present a ten-variant bit-width sweep (FP16, uniform 8/4/3, mixed 8/4/3, plus E8/P4, E8/P3, E4/P3) for DINO-WM planning on Wall.
+  \item We identify a three-regime pattern: 8-bit stable, 3-bit collapsed, and 4-bit as a transition regime.
+  \item We show that at 4-bit, encoder-preserving mixed quantization doubles success over uniform INT4 under the same planning budget (0.167 vs 0.083), yielding a concrete hypothesis for future module-aware quantization research.
 \end{itemize}
 
-\section{Related Work}
-\textbf{World models for control.} Early latent-dynamics planning systems established the effectiveness of compact predictive models for control \citep{ha2018worldmodels,hafner2018planet}.  
-Dreamer-style methods advanced this direction to larger and more diverse tasks \citep{hafner2019dreamer,hafner2023dreamerv3,hafner2025naturedreamer}.  
-DINO-WM brings pretrained visual priors into this pipeline and demonstrates strong zero-shot planning behavior \citep{zhou2024dinowm}.
+\section{Setup}
+We evaluate pretrained DINO-WM \citep{zhou2024dinowm} on the Wall environment using the repository's native success metric from planning outputs.
+We do not redefine task scoring.
+The study is intentionally compute-bounded: one environment, one checkpoint, one planner budget, and two seeds.
 
-\textbf{Post-training quantization.} Modern PTQ methods for transformer inference show that performance is sensitive to where and how quantization is applied \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.  
-The dedicated world-model quantization study in \citet{fu2026quantwm} motivates our focus on component-specific precision policies rather than monolithic quantization.
+\paragraph{Variants.}
+We compare ten variants.
+The baseline is FP16.
+Uniform variants quantize both encoder and predictor at 8, 4, or 3 bits.
+Encoder-preserving mixed variants keep the encoder at FP16 and quantize only the predictor (8, 4, or 3 bits).
+We also include three mixed encoder/predictor combinations: E8/P4, E8/P3, and E4/P3.
+All quantization is weight-only on linear layers.
 
-\section{Experimental Setup}
-We evaluate on the Wall environment using the native DINO-WM planning output metric (\texttt{success}) without redefining task scoring \citep{zhou2024dinowm}.  
-All runs use the same pretrained checkpoint, planning code path, and random seed policy.
+\paragraph{Evaluation protocol.}
+We run on Apple M4 (MPS backend) with goal\_source=\texttt{random\_state}, goal\_H=9, planner.opt\_steps=2, planner.max\_iter=2, seeds $\{1,2\}$, and $n\_evals=6$ episodes per seed.
+This yields 120 evaluated episodes total (10 variants $\times$ 2 seeds $\times$ 6 episodes).
+Per run we log success rate, average planning time, and model-size estimate under effective bitwidth accounting.
 
-Our evaluation grid is deliberately small: variants $\in$ \{FP16, uniform INT8, mixed INT8\}, opt\_steps $\in \{10,30\}$, seed $=0$, and $n\_evals=5$ episodes per run.
-We record success rate, average wall-clock planning time per episode, peak GPU memory proxy, and serialized model size.
+\section{Results}
+Figure~\ref{fig:success} summarizes success rates.
+Three regimes emerge.
+First, 8-bit is stable: FP16, uniform INT8, and mixed INT8 all reach mean success 0.50.
+Second, 3-bit collapses: both uniform INT3 and mixed INT3 reach 0.00.
+Third, 4-bit is the transition region: mixed INT4 reaches 0.167 versus 0.083 for uniform INT4.
+This is a doubling in absolute success under the same planner budget.
 
-\section{Method}
-We use weight-only INT8 conversion for \texttt{Linear} layers.
-\begin{itemize}
-\item \textbf{FP16}: no quantization.
-\item \textbf{Uniform INT8}: quantize encoder and predictor.
-\item \textbf{Mixed INT8}: keep encoder in FP16, quantize predictor.
-\end{itemize}
-This directly tests whether preserving encoder precision changes planning behavior relative to uniform quantization under matched task settings.
+The extended mixed settings refine this picture.
+Mixed E8/P4 reaches 0.083 (below encoder-preserving mixed INT4), while E8/P3 and E4/P3 are both 0.00.
+These comparisons indicate that simply assigning asymmetric bits is insufficient; keeping the encoder at higher precision appears important near the low-bit frontier.
 
-\section{Experiments}
-Figure~\ref{fig:success} shows success vs optimization steps. In this regime, all lines saturate at 1.00, so quality is indistinguishable.
-Figure~\ref{fig:apple} and Table~\ref{tab:eff} show the efficiency tradeoff.
+Figure~\ref{fig:frontier} shows the accuracy-memory frontier.
+Low-bit models reduce size substantially, but the smallest models (3-bit) fail on this task.
+Among 4-bit-class settings, encoder-preserving mixed INT4 provides the best success in our runs, albeit at larger size than uniform INT4.
+Table~\ref{tab:keyresults} reports key numbers.
 
-\begin{figure}[H]
+\begin{figure}[t]
   \centering
-  \IfFileExists{../figures/success_vs_opt_steps.pdf}{
-    \includegraphics[width=0.95\linewidth]{../figures/success_vs_opt_steps.pdf}
-  }{
-    \fbox{\parbox[c][4.0cm][c]{0.95\linewidth}{\centering Placeholder for success-vs-opt-steps figure}}
-  }
-  \caption{Planning success versus optimization steps on Wall. All variants saturate at 1.00 in this setup.}
+  \includegraphics[width=0.98\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_success_bars.pdf}
+  \caption{Success under low-bit quantization on Wall (mean $\pm$ std over two seeds). The transition appears at 4-bit: mixed INT4 (encoder FP16, predictor INT4) outperforms uniform INT4, while 3-bit variants collapse.}
   \label{fig:success}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[t]
   \centering
-  \IfFileExists{../figures/mac_predictor_latency.pdf}{
-    \includegraphics[width=0.95\linewidth]{../figures/mac_predictor_latency.pdf}
-  }{
-    \fbox{\parbox[c][3.8cm][c]{0.95\linewidth}{\centering Placeholder for Apple predictor latency plot}}
-  }
-  \caption{Apple runtime benchmark (predictor module): CoreML FP16/INT8 are substantially faster than PyTorch MPS in our setting.}
-  \label{fig:apple}
+  \includegraphics[width=0.98\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_frontier.pdf}
+  \caption{Accuracy-memory frontier for all ten variants. 8-bit variants retain FP16-level success in this setup; 3-bit variants fail; 4-bit variants differentiate by precision allocation.}
+  \label{fig:frontier}
 \end{figure}
 
-\begin{table}[H]
+\begin{table}[t]
 \centering
 \small
 \begin{tabular}{lccc}
 \toprule
-Variant & Success@30 & Avg Time@30 (s) & Model Size (MB) \\
+Variant & Success & Time (s) & Size (MB) \\
 \midrule
-FP16 & 1.00 & 7.87 & 204.99 \\
-Uniform INT8 & 1.00 & 8.98 & 87.72 \\
-Mixed INT8 & 1.00 & 9.38 & 148.31 \\
+FP16 & 0.500 & 54.15 & 204.99 \\
+Uniform INT8 & 0.500 & 55.49 & 87.72 \\
+Mixed INT8 (enc FP16) & 0.500 & 54.46 & 148.31 \\
+Uniform INT4 & 0.083 & 54.99 & 68.12 \\
+Mixed INT4 (enc FP16) & \textbf{0.167} & 52.74 & 138.84 \\
+Uniform INT3 & 0.000 & 52.52 & 63.23 \\
+Mixed INT3 (enc FP16) & 0.000 & 53.21 & 136.47 \\
 \bottomrule
 \end{tabular}
-\caption{Efficiency summary for opt\_steps=30. Uniform INT8 gives the largest size reduction; all methods have equal success here.}
-\label{tab:eff}
+\caption{Key results at opt\_steps=2, goal\_H=9 (means over two seeds).}
+\label{tab:keyresults}
 \end{table}
 
-Relative to FP16, uniform INT8 reduces model size by 57.2\% and mixed INT8 by 27.6\%.  
-At opt\_steps=30, latency increases by 14.2\% (uniform) and 19.3\% (mixed) in our current MPS implementation.
-In a dedicated predictor benchmark on the same machine, CoreML FP16 and INT8 achieve 1.79$\times$ and 1.76$\times$ speedup vs PyTorch MPS FP16, while CoreML INT8 package size is 49.6\% smaller than CoreML FP16.
-These results indicate that runtime/backend selection dominates observed speed on Apple Silicon.
+\section{Demo and Reproducibility}
+We provide a replay-based viewer that loads saved trajectories and toggles variants without requiring GPU inference.
+The experiment pipeline is scriptable end-to-end: variant definitions live in one config file, each run writes a consistent metrics JSON, and aggregation/figure scripts produce publication figures directly.
 
-\section{Demo}
-We provide a replay-based Streamlit viewer that loads saved trajectories and videos for each variant.
-The demo is GPU-free on Mac and enables rapid qualitative checks of trajectory behavior and success/failure tags across variants.
-
-\section{Limitations}
-This tiny-paper MVP is limited to one environment, one quantization family (weight-only INT8), one seed, and no activation quantization.
-The Wall setup saturates in success, preventing conclusions about accuracy ranking between quantization policies.
-Our efficiency numbers are from a Mac MPS path with non-fused INT8 wrappers; absolute latency may differ on optimized GPU kernels.
-Future work should include harder tasks, additional seeds, CUDA-native INT8 backends, and ablations beyond linear-layer weight-only quantization.
+\section{Limitations and Outlook}
+This is a preliminary tiny-paper study and should be interpreted as such.
+The sample size is small (two seeds), confidence intervals are wide at 8-bit, and the conclusions are limited to Wall with one planner budget.
+Our quantization path is weight-only and does not include activation quantization or hardware-fused low-bit kernels.
+As a result, the timing differences are modest in this Mac-only setup and should be interpreted primarily as a controlled robustness/compression study.
+Nevertheless, the threshold behavior and 4-bit encoder-sensitivity pattern provide a concrete next-step hypothesis for broader spatial reasoning benchmarks: as bitwidth approaches the failure frontier, precision should be allocated preferentially to representation modules rather than uniformly across the world model.
 
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
