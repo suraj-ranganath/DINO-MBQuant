@@ -28,30 +28,42 @@ This repository contains a fast, reproducible pipeline for:
    ```bash
    pip install -r requirements-gpu.txt
    ```
-2. Configure paths in `configs/experiment_config.yaml`.
-3. Build variants:
+2. Get dataset + pretrained checkpoint (source of truth):
+   - DINO-WM OSF bundle (dataset + checkpoints):  
+     `https://osf.io/bmw48/?view_only=a56a296ce3b24cceaf408383a175ce28`
+   - In this project, current local paths are:
+     - checkpoint: `/Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth`
+     - dataset (Wall): `/Users/suraj/Downloads/wall_single`
+   - Set environment/config:
+   ```bash
+   export DATASET_DIR=/Users/suraj/Downloads
+   # Then set dino.ckpt_base_path in config to:
+   # /Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth
+   ```
+3. Configure paths in `configs/experiment_config.yaml`.
+4. Build variants:
    ```bash
    python -m experiments.build_variants --config configs/experiment_config.yaml
    ```
-4. Run FP16 baseline only (optional gate check):
+5. Run FP16 baseline only (optional gate check):
    ```bash
    python -m experiments.run_baseline_wall --config configs/experiment_config.yaml
    ```
-5. Run grid:
+6. Run grid:
    ```bash
    python -m experiments.run_wall_grid --config configs/experiment_config.yaml
    ```
-6. Aggregate + figures:
+7. Aggregate + figures:
    ```bash
    python -m experiments.aggregate --config configs/experiment_config.yaml
    python -m experiments.make_figures --config configs/experiment_config.yaml
    ```
-7. Export demo artifacts + launch demo:
+8. Export demo artifacts + launch demo:
    ```bash
    python -m experiments.export_demo_artifacts --config configs/experiment_config.yaml
    streamlit run demo/app.py
    ```
-8. Prepare paper scaffold and compile:
+9. Prepare paper scaffold and compile:
    ```bash
    bash scripts/setup_paper.sh
    bash scripts/compile_paper.sh
