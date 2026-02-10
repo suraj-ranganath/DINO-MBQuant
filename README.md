@@ -67,8 +67,9 @@ Use this when running only on a local MacBook (no CUDA):
    - set `export DINO_WM_DEVICE=mps` (or `cpu` if MPS op support is problematic)
 2. Run preflight + pipeline:
    ```bash
-   bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml
+   bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml my_run_name
    ```
+   Each run is isolated under run-specific folders (for example, `results/.../my_run_name`, `figures/.../my_run_name`, `notes/my_run_name/...`), so new runs do not overwrite old results.
 3. Launch replay demo:
    ```bash
    streamlit run demo/app.py
@@ -78,6 +79,26 @@ Use this when running only on a local MacBook (no CUDA):
    bash scripts/build_release_bundle.sh
    ```
 5. Use `notes/paper_numbers.md` to quickly fill result text in the tiny paper.
+
+## Transition-Study Pipeline (Paired + Budget + Mechanistic)
+
+Use this for the stronger workshop narrative (paired evaluation, budget sensitivity, encoder-retention at INT4):
+
+```bash
+bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml my_transition_run
+```
+
+Key outputs:
+- `results/my_transition_run/summary.csv`
+- `results/my_transition_run/summary_grouped.csv`
+- `results/my_transition_run/episode_outcomes.csv`
+- `results/my_transition_run/paired_delta_bA_mixed_vs_uniform_int4.json`
+- `results/my_transition_run/mechanistic_correlations.json`
+- `figures_transition/my_transition_run/transition_frontier.pdf`
+- `figures_transition/my_transition_run/budget_sensitivity.pdf`
+- `figures_transition/my_transition_run/encoder_retention_curve.pdf`
+
+Note: ES-Reasoning Tiny paper formatting can be targeted to 5 pages including references, with unlimited appendix for additional ablations.
 
 ## Notes
 - Use GPU (A6000/A100) for experiment runs.

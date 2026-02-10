@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
 from matplotlib.ticker import MaxNLocator
+
+from experiments.run_paths import resolve_path, run_scoped_file
 
 
 def load_cfg(path: str) -> Dict[str, Any]:
@@ -54,6 +55,17 @@ def _variant_palette(variants: list[str]) -> Dict[str, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate paper figures from aggregated results.")
     parser.add_argument("--config", default="configs/experiment_config.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under configured output roots.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow overwriting existing figure files for the same run-name.",
+    )
     parser.add_argument("--summary", default="results/summary.csv")
     parser.add_argument("--grouped", default="results/summary_grouped.csv")
     args = parser.parse_args()
@@ -62,10 +74,10 @@ def main() -> None:
     labels = cfg.get("labels", {})
     _style()
 
-    summary_path = Path(args.summary).resolve()
+    summary_path = run_scoped_file(args.summary, run_name=args.run_name)
     if not summary_path.exists():
         raise SystemExit(f"Missing summary file: {summary_path}")
-    grouped_path = Path(args.grouped).resolve()
+    grouped_path = run_scoped_file(args.grouped, run_name=args.run_name)
     if not grouped_path.exists():
         raise SystemExit(f"Missing grouped summary file: {grouped_path}")
 
@@ -77,7 +89,18 @@ def main() -> None:
         raise SystemExit("Grouped summary CSV is empty.")
     palette = _variant_palette(list(grouped["variant"].unique()))
 
-    figures_root = Path(cfg["paths"]["figures_root"]).resolve()
+    figures_root = resolve_path(cfg, key="figures_root", run_name=args.run_name)
+    if figures_root.exists() and not args.allow_existing:
+        preexisting = [
+            figures_root / "success_vs_opt_steps.pdf",
+            figures_root / "efficiency_tradeoff.pdf",
+            figures_root / "efficiency_table.pdf",
+        ]
+        if any(p.exists() for p in preexisting):
+            raise SystemExit(
+                f"Figure outputs already exist in {figures_root}\n"
+                "Choose a new --run-name or pass --allow-existing."
+            )
     figures_root.mkdir(parents=True, exist_ok=True)
 
     grouped = grouped.sort_values(by=["variant", "opt_steps"]).copy()

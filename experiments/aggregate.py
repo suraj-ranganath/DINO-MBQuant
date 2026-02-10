@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import math
-from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
 import yaml
+
+from experiments.run_paths import resolve_path, run_scoped_file
 
 
 def load_cfg(path: str) -> Dict[str, Any]:
@@ -17,14 +18,25 @@ def load_cfg(path: str) -> Dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aggregate per-run metrics JSON into CSV summaries.")
     parser.add_argument("--config", default="configs/experiment_config.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under configured output roots.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow overwriting existing summary files for the same run-name.",
+    )
     parser.add_argument("--summary-out", default="results/summary.csv")
     parser.add_argument("--grouped-out", default="results/summary_grouped.csv")
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
-    wall_root = Path(cfg["paths"]["wall_root"]).resolve()
+    wall_root = resolve_path(cfg, key="wall_root", run_name=args.run_name)
 
-    metrics_files = sorted(wall_root.glob("*/opt_steps_*/seed_*/metrics.json"))
+    metrics_files = sorted(wall_root.rglob("metrics.json"))
     if not metrics_files:
         raise SystemExit(f"No metrics found under {wall_root}")
 
@@ -38,11 +50,18 @@ def main() -> None:
 
     wanted_cols = [
         "variant",
+        "budget_id",
         "quant_bits",
         "quant_bits_desc",
         "opt_steps",
         "seed",
+        "goal_source",
+        "goal_H",
+        "planner_max_iter",
+        "goal_file_path",
         "success_rate",
+        "episode_success_count",
+        "episode_successes_path",
         "avg_plan_time_seconds",
         "peak_gpu_mem_mb",
         "model_size_mb",
@@ -53,8 +72,9 @@ def main() -> None:
     keep_cols = [c for c in wanted_cols if c in df.columns]
     summary = df[keep_cols].sort_values(by=["variant", "opt_steps", "seed"]).reset_index(drop=True)
 
+    group_keys = [k for k in ["variant", "budget_id", "opt_steps", "goal_H", "planner_max_iter"] if k in summary.columns]
     grouped = (
-        summary.groupby(["variant", "opt_steps"], as_index=False)
+        summary.groupby(group_keys, dropna=False, as_index=False)
         .agg(
             success_rate_mean=("success_rate", "mean"),
             success_rate_std=("success_rate", "std"),
@@ -68,7 +88,7 @@ def main() -> None:
             quant_bits_desc=("quant_bits_desc", "first"),
             num_runs=("seed", "count"),
         )
-        .sort_values(by=["variant", "opt_steps"])
+        .sort_values(by=group_keys)
         .reset_index(drop=True)
     )
 
@@ -89,10 +109,16 @@ def main() -> None:
     grouped["success_rate_ci95_lo"] = [x[0] for x in ci]
     grouped["success_rate_ci95_hi"] = [x[1] for x in ci]
 
-    summary_path = Path(args.summary_out).resolve()
+    summary_path = run_scoped_file(args.summary_out, run_name=args.run_name)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
-    grouped_path = Path(args.grouped_out).resolve()
+    grouped_path = run_scoped_file(args.grouped_out, run_name=args.run_name)
     grouped_path.parent.mkdir(parents=True, exist_ok=True)
+    if (summary_path.exists() or grouped_path.exists()) and not args.allow_existing:
+        raise SystemExit(
+            "Summary output already exists for this run-name.\n"
+            f"- {summary_path}\n- {grouped_path}\n"
+            "Choose a new --run-name, new output paths, or pass --allow-existing."
+        )
 
     summary.to_csv(summary_path, index=False)
     grouped.to_csv(grouped_path, index=False)

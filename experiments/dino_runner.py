@@ -102,6 +102,11 @@ def run_variant_once(
     seed: int,
     opt_steps: int,
     n_evals: int,
+    goal_source_override: Optional[str] = None,
+    goal_file_path_override: Optional[str] = None,
+    goal_H_override: Optional[int] = None,
+    planner_max_iter_override: Optional[int] = None,
+    budget_id: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     project_root = Path(config_path).resolve().parent.parent
     config = load_yaml(config_path)
@@ -125,6 +130,7 @@ def run_variant_once(
     requested_quant_bits = int(variant_cfg.get("quant_bits", quant_cfg.get("quant_bits", 8)))
     target_bits_overrides = variant_cfg.get("quant_bits_by_target", {}) or {}
     render_videos = bool(eval_cfg.get("render_videos", False))
+    episode_successes: Optional[list[bool]] = None
 
     quantized_paths = []
     skipped_paths = []
@@ -168,14 +174,21 @@ def run_variant_once(
         return model
 
     def patched_eval_actions(self, actions, action_len=None, filename="output", save_video=False):
+        nonlocal episode_successes
         effective_save_video = bool(save_video) and render_videos
-        return original_eval_actions(
+        logs, successes, e_obses, e_states = original_eval_actions(
             self,
             actions,
             action_len,
             filename=filename,
             save_video=effective_save_video,
         )
+        if filename.startswith("output_final"):
+            try:
+                episode_successes = [bool(x) for x in successes.tolist()]
+            except Exception:
+                episode_successes = [bool(x) for x in successes]
+        return logs, successes, e_obses, e_states
 
     plan_module.load_model = patched_load_model
     plan_module.PlanEvaluator.eval_actions = patched_eval_actions
@@ -189,6 +202,15 @@ def run_variant_once(
         opt_steps=opt_steps,
         n_evals=n_evals,
     )
+    if goal_source_override is not None:
+        overrides["goal_source"] = str(goal_source_override)
+    if goal_H_override is not None:
+        overrides["goal_H"] = int(goal_H_override)
+    if planner_max_iter_override is not None:
+        overrides.setdefault("planner", {})
+        overrides["planner"]["max_iter"] = int(planner_max_iter_override)
+    if goal_file_path_override is not None:
+        overrides["goal_file_path"] = str(Path(goal_file_path_override).resolve())
     cfg_dict = _merge_plan_cfg(plan_cfg_path, overrides)
     cfg_dict["saved_folder"] = str(run_path)
     cfg_dict["wandb_logging"] = False
@@ -226,9 +248,22 @@ def run_variant_once(
 
         metrics = {
             "variant": variant_name,
+            "budget_id": str(budget_id) if budget_id is not None else "default",
             "seed": int(seed),
             "opt_steps": int(opt_steps),
             "n_evals": int(n_evals),
+            "goal_source": str(overrides.get("goal_source", eval_cfg.get("goal_source", "random_state"))),
+            "goal_H": int(overrides.get("goal_H", eval_cfg.get("goal_H", 5))),
+            "planner_max_iter": (
+                int(overrides.get("planner", {}).get("max_iter"))
+                if overrides.get("planner", {}).get("max_iter") is not None
+                else None
+            ),
+            "goal_file_path": (
+                str(overrides.get("goal_file_path"))
+                if overrides.get("goal_file_path") is not None
+                else None
+            ),
             "success_count": success_count,
             "success_rate": float(success_rate),
             "avg_plan_time_seconds": float(elapsed / max(1, n_evals)),
@@ -241,7 +276,25 @@ def run_variant_once(
             "quant_backend_effective": effective_backend,
             "quant_bits": int(effective_quant_bits),
             "quant_bits_desc": quant_bits_desc,
+            "episode_success_count": (
+                int(sum(1 for s in episode_successes if s))
+                if episode_successes is not None
+                else None
+            ),
+            "episode_successes_path": (
+                str((run_path / "episode_outcomes.json").resolve())
+                if episode_successes is not None
+                else None
+            ),
         }
+        if episode_successes is not None:
+            episode_rows = [
+                {"episode_id": int(i), "success": bool(s)}
+                for i, s in enumerate(episode_successes)
+            ]
+            (run_path / "episode_outcomes.json").write_text(
+                json.dumps(episode_rows, indent=2), encoding="utf-8"
+            )
 
         trace = {
             "variant_name": variant_name,
@@ -251,6 +304,7 @@ def run_variant_once(
             "quant_bits_effective": int(effective_quant_bits),
             "quant_bits_by_target": {k: int(v) for k, v in applied_target_bits.items()},
             "quant_bits_desc": quant_bits_desc,
+            "budget_id": str(budget_id) if budget_id is not None else "default",
             "quantized_layer_paths": quantized_paths,
             "excluded_or_skipped_layer_paths": skipped_paths,
             "model_size_mb": float(model_size_mb or 0.0),
@@ -281,6 +335,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--opt-steps", type=int, required=True)
     parser.add_argument("--n-evals", type=int, required=True)
+    parser.add_argument("--goal-source", default=None)
+    parser.add_argument("--goal-file-path", default=None)
+    parser.add_argument("--goal-H", type=int, default=None)
+    parser.add_argument("--planner-max-iter", type=int, default=None)
+    parser.add_argument("--budget-id", default=None)
     parser.add_argument("--metrics-out", default=None)
     parser.add_argument("--trace-out", default=None)
     args = parser.parse_args()
@@ -292,6 +351,11 @@ def main() -> None:
         seed=args.seed,
         opt_steps=args.opt_steps,
         n_evals=args.n_evals,
+        goal_source_override=args.goal_source,
+        goal_file_path_override=args.goal_file_path,
+        goal_H_override=args.goal_H,
+        planner_max_iter_override=args.planner_max_iter,
+        budget_id=args.budget_id,
     )
 
     if args.metrics_out:

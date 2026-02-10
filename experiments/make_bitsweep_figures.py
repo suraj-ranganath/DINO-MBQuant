@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
+
+from experiments.run_paths import resolve_path, run_scoped_file
 
 
 def load_cfg(path: str) -> Dict:
@@ -56,6 +57,17 @@ def family_color(fam: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create paper-ready bitsweep figures.")
     parser.add_argument("--config", default="configs/experiment_config.mac_bitsweep_h9_mixed.yaml")
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name appended under configured output roots.",
+    )
+    parser.add_argument(
+        "--allow-existing",
+        action="store_true",
+        default=False,
+        help="Allow overwriting existing figure files for the same run-name.",
+    )
     parser.add_argument("--summary", default="results/summary_bitsweep_h9_mixed.csv")
     parser.add_argument("--grouped", default="results/summary_bitsweep_h9_mixed_grouped.csv")
     args = parser.parse_args()
@@ -64,8 +76,8 @@ def main() -> None:
     labels = cfg.get("labels", {})
     style()
 
-    summary_path = Path(args.summary).resolve()
-    grouped_path = Path(args.grouped).resolve()
+    summary_path = run_scoped_file(args.summary, run_name=args.run_name)
+    grouped_path = run_scoped_file(args.grouped, run_name=args.run_name)
     if not summary_path.exists() or not grouped_path.exists():
         raise SystemExit("Missing summary/grouped CSV for bitsweep figures.")
 
@@ -81,7 +93,18 @@ def main() -> None:
     grouped["size"] = grouped["model_size_mean"]
     grouped = grouped.sort_values(["success_rate_mean", "size"], ascending=[False, True]).reset_index(drop=True)
 
-    fig_root = Path(cfg["paths"]["figures_root"]).resolve()
+    fig_root = resolve_path(cfg, key="figures_root", run_name=args.run_name)
+    if fig_root.exists() and not args.allow_existing:
+        preexisting = [
+            fig_root / "bitsweep_success_bars.pdf",
+            fig_root / "bitsweep_frontier.pdf",
+            fig_root / "bitsweep_efficiency_table.pdf",
+        ]
+        if any(p.exists() for p in preexisting):
+            raise SystemExit(
+                f"Figure outputs already exist in {fig_root}\n"
+                "Choose a new --run-name or pass --allow-existing."
+            )
     fig_root.mkdir(parents=True, exist_ok=True)
 
     # Figure 1: success bars with family color coding.

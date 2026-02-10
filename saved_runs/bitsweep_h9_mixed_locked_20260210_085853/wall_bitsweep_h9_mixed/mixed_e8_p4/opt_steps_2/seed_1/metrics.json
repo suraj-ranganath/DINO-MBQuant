@@ -1,0 +1,18 @@
+{
+  "variant": "mixed_e8_p4",
+  "seed": 1,
+  "opt_steps": 2,
+  "n_evals": 6,
+  "success_count": 1,
+  "success_rate": 0.16666666666666666,
+  "avg_plan_time_seconds": 50.112427451337375,
+  "peak_gpu_mem_mb": 0.0,
+  "model_size_mb": 78.24929428100586,
+  "run_id": "mixed_e8_p4_opt2_seed1",
+  "timestamp_utc": "2026-02-10T09:44:29Z",
+  "source_output_dir": "/Users/suraj/Desktop/EAI_DINO/results/wall_bitsweep_h9_mixed/mixed_e8_p4/opt_steps_2/seed_1",
+  "logs_path": "/Users/suraj/Desktop/EAI_DINO/results/wall_bitsweep_h9_mixed/mixed_e8_p4/opt_steps_2/seed_1/logs.json",
+  "quant_backend_effective": "fake_int8",
+  "quant_bits": -1,
+  "quant_bits_desc": "encoder8_predictor4"
+}

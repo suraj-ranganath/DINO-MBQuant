@@ -1,0 +1,124 @@
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+
+\title{Where Do Bits Matter in World Models?\\A Tiny M4 Study of Encoder-Preserving Quantization for DINO-WM Planning}
+\author{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Efficient spatial reasoning requires world models that remain reliable under strict memory and compute budgets.
+We study this problem on DINO-WM planning in Wall with a Mac-only, workshop-scale protocol, sweeping ten weight-only low-bit variants across uniform and mixed precision designs.
+Our central hypothesis is that near the low-bit failure frontier, preserving encoder precision is more important than uniformly reducing all modules.
+The results show a clear regime pattern: 8-bit variants match FP16 success (0.50), 3-bit variants collapse (0.00), and 4-bit is the transition regime where precision allocation matters.
+At 4-bit, encoder-preserving mixed quantization (encoder FP16, predictor INT4) reaches 0.167 success versus 0.083 for uniform INT4 under the same planning budget.
+These preliminary findings motivate a broader research direction on module-aware precision allocation for robust and efficient world-model planning.
+\end{abstract}
+
+\section{Introduction}
+World-model planning is attractive for efficient spatial reasoning because control is optimized in latent space rather than directly in pixels.
+Recent systems show strong planning behavior when representation quality is preserved \citep{zhou2024dinowm,oquab2023dinov2}.
+At the same time, low-bit quantization is now a default deployment tool, and broad surveys report that many models remain robust at moderate precision before degrading sharply in ultra-low-bit regimes \citep{liu2025lowbitmodelquantizationdeep}.
+Recent world-model-specific evidence further suggests that quantization sensitivity differs across modules \citep{fu2026quantwm}.
+
+This motivates a concrete workshop question: for world-model planning, is the key decision merely \emph{how many bits}, or also \emph{where those bits are allocated}?
+We focus on the encoder/predictor split in DINO-WM and test the hypothesis that representation modules should keep higher precision near the low-bit frontier.
+The study is intentionally small and reproducible on consumer hardware (M4 Mac), designed to provide a clear empirical signal and a publishable starting point for larger follow-up work.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item We present a ten-variant bit-width sweep (FP16, uniform 8/4/3, mixed 8/4/3, plus E8/P4, E8/P3, E4/P3) for DINO-WM planning on Wall.
+  \item We identify a three-regime pattern: 8-bit stable, 3-bit collapsed, and 4-bit as a transition regime.
+  \item We show that at 4-bit, encoder-preserving mixed quantization doubles success over uniform INT4 under the same planning budget (0.167 vs 0.083), yielding a concrete hypothesis for future module-aware quantization research.
+\end{itemize}
+
+\section{Setup}
+We evaluate pretrained DINO-WM \citep{zhou2024dinowm} on the Wall environment using the repository's native success metric from planning outputs.
+We do not redefine task scoring.
+The study is intentionally compute-bounded: one environment, one checkpoint, one planner budget, and two seeds.
+
+\paragraph{Variants.}
+We compare ten variants.
+The baseline is FP16.
+Uniform variants quantize both encoder and predictor at 8, 4, or 3 bits.
+Encoder-preserving mixed variants keep the encoder at FP16 and quantize only the predictor (8, 4, or 3 bits).
+We also include three mixed encoder/predictor combinations: E8/P4, E8/P3, and E4/P3.
+All quantization is weight-only on linear layers.
+
+\paragraph{Evaluation protocol.}
+We run on Apple M4 (MPS backend) with goal\_source=\texttt{random\_state}, goal\_H=9, planner.opt\_steps=2, planner.max\_iter=2, seeds $\{1,2\}$, and $n\_evals=6$ episodes per seed.
+This yields 120 evaluated episodes total (10 variants $\times$ 2 seeds $\times$ 6 episodes).
+Per run we log success rate, average planning time, and model-size estimate under effective bitwidth accounting.
+
+\section{Results}
+Figure~\ref{fig:success} summarizes success rates.
+Three regimes emerge.
+First, 8-bit is stable: FP16, uniform INT8, and mixed INT8 all reach mean success 0.50.
+Second, 3-bit collapses: both uniform INT3 and mixed INT3 reach 0.00.
+Third, 4-bit is the transition region: mixed INT4 reaches 0.167 versus 0.083 for uniform INT4.
+This is a doubling in absolute success under the same planner budget.
+
+The extended mixed settings refine this picture.
+Mixed E8/P4 reaches 0.083 (below encoder-preserving mixed INT4), while E8/P3 and E4/P3 are both 0.00.
+These comparisons indicate that simply assigning asymmetric bits is insufficient; keeping the encoder at higher precision appears important near the low-bit frontier.
+
+Figure~\ref{fig:frontier} shows the accuracy-memory frontier.
+Low-bit models reduce size substantially, but the smallest models (3-bit) fail on this task.
+Among 4-bit-class settings, encoder-preserving mixed INT4 provides the best success in our runs, albeit at larger size than uniform INT4.
+Table~\ref{tab:keyresults} reports key numbers.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_success_bars.pdf}
+  \caption{Success under low-bit quantization on Wall (mean $\pm$ std over two seeds). The transition appears at 4-bit: mixed INT4 (encoder FP16, predictor INT4) outperforms uniform INT4, while 3-bit variants collapse.}
+  \label{fig:success}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_frontier.pdf}
+  \caption{Accuracy-memory frontier for all ten variants. 8-bit variants retain FP16-level success in this setup; 3-bit variants fail; 4-bit variants differentiate by precision allocation.}
+  \label{fig:frontier}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Variant & Success & Time (s) & Size (MB) \\
+\midrule
+FP16 & 0.500 & 54.15 & 204.99 \\
+Uniform INT8 & 0.500 & 55.49 & 87.72 \\
+Mixed INT8 (enc FP16) & 0.500 & 54.46 & 148.31 \\
+Uniform INT4 & 0.083 & 54.99 & 68.12 \\
+Mixed INT4 (enc FP16) & \textbf{0.167} & 52.74 & 138.84 \\
+Uniform INT3 & 0.000 & 52.52 & 63.23 \\
+Mixed INT3 (enc FP16) & 0.000 & 53.21 & 136.47 \\
+\bottomrule
+\end{tabular}
+\caption{Key results at opt\_steps=2, goal\_H=9 (means over two seeds).}
+\label{tab:keyresults}
+\end{table}
+
+\section{Demo and Reproducibility}
+We provide a replay-based viewer that loads saved trajectories and toggles variants without requiring GPU inference.
+The experiment pipeline is scriptable end-to-end: variant definitions live in one config file, each run writes a consistent metrics JSON, and aggregation/figure scripts produce publication figures directly.
+
+\section{Limitations and Outlook}
+This is a preliminary tiny-paper study and should be interpreted as such.
+The sample size is small (two seeds), confidence intervals are wide at 8-bit, and the conclusions are limited to Wall with one planner budget.
+Our quantization path is weight-only and does not include activation quantization or hardware-fused low-bit kernels.
+As a result, the timing differences are modest in this Mac-only setup and should be interpreted primarily as a controlled robustness/compression study.
+Nevertheless, the threshold behavior and 4-bit encoder-sensitivity pattern provide a concrete next-step hypothesis for broader spatial reasoning benchmarks: as bitwidth approaches the failure frontier, precision should be allocated preferentially to representation modules rather than uniformly across the world model.
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\end{document}
