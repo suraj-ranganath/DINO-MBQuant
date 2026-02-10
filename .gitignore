@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv311/
+
+# Artifacts
+results/
+figures/*.pdf
+figures/*.png
+demo/demo_artifacts/*
+release/*.zip
+
+# DINO-WM outputs
+third_party_dino_wm/
+third_party_dino_wm/plan_outputs/
+third_party_dino_wm/outputs/
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.pdfsync
+paper/*.synctex.gz
+paper/iclr2026.zip

@@ -1,0 +1,1 @@
+{"variant":"fp16","opt_steps":30,"seed":0,"success_rate":0.7,"avg_plan_time_seconds":0.12,"peak_gpu_mem_mb":1024,"model_size_mb":890,"run_id":"fp16_opt30_seed0","source_output_dir":"results/wall/fp16/opt_steps_30/seed_0","timestamp_utc":"2026-02-09T00:00:00Z"}

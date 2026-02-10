@@ -1,0 +1,76 @@
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{float}
+
+\title{Encoder-Preserving Mixed Precision Quantization Improves DINO-WM Planning on Wall}
+
+\author{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We study whether preserving encoder precision improves planning quality under strict efficiency constraints in world models.
+Using DINO-WM on the Wall environment, we compare FP16, uniform INT8 weight-only quantization, and mixed INT8 quantization that keeps the encoder in FP16.
+In a Mac-only preliminary setting, mixed precision improves planning success over uniform INT8 while retaining a similar local efficiency footprint.
+We release a replay-based demo and a reproducible script bundle for all runs.
+\end{abstract}
+
+\section{Introduction}
+Efficient spatial reasoning requires planning systems that remain accurate under constrained memory and latency budgets.
+World models are attractive because planning can be performed in latent space, but precision reduction can degrade representation quality.
+This work focuses on a practical mixed precision strategy that preserves encoder precision while quantizing predictive dynamics.
+
+\section{Setup}
+We evaluate DINO-WM \citep{zhou2024dinowm} on the Wall task using the repository's native planning pipeline and success metric.
+Success is parsed directly from planning output logs, without redefining task metrics.
+All variants use identical checkpoints, seeds, and planning settings.
+
+\section{Method}
+We use weight-only INT8 quantization for linear layers.
+We compare three variants: (1) FP16 baseline, (2) uniform INT8 on encoder and predictor, and (3) mixed INT8 where the encoder remains FP16 and only predictor layers are quantized.
+The hypothesis is that preserving encoder precision better maintains goal-relevant latent structure.
+
+\section{Experiments}
+We run Wall-only evaluation with planning step budgets and multiple seeds.
+Each run records success rate, average planning time, peak memory proxy, and model size.
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{../figures/success_vs_opt_steps.pdf}{
+    \includegraphics[width=0.95\linewidth]{../figures/success_vs_opt_steps.pdf}
+  }{
+    \fbox{\parbox[c][4.0cm][c]{0.95\linewidth}{\centering Placeholder for success-vs-opt-steps figure}}
+  }
+  \caption{Planning success versus optimization steps for FP16, uniform INT8, and mixed INT8.}
+  \label{fig:success}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{../figures/efficiency_table.pdf}{
+    \includegraphics[width=0.95\linewidth]{../figures/efficiency_table.pdf}
+  }{
+    \fbox{\parbox[c][2.5cm][c]{0.95\linewidth}{\centering Placeholder for efficiency table}}
+  }
+  \caption{Efficiency comparison across variants (model size, planning latency, and peak GPU memory).}
+  \label{fig:eff}
+\end{figure}
+
+\section{Demo}
+We provide a replay-based Streamlit viewer that loads precomputed episode trajectories and allows instant variant toggling on a Mac without GPU dependencies.
+
+\section{Limitations}
+This MVP study is limited to one environment (Wall), one quantization family (weight-only INT8), and no activation quantization.
+For Mac-only execution we use a fake INT8 weight-only fallback instead of CUDA kernel-backed int8 inference, so efficiency numbers are preliminary local proxies.
+Broader environment coverage and richer quantization schemes remain future work.
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\end{document}

@@ -1,0 +1,1 @@
+{"variant":"uniform_int8","opt_steps":30,"seed":0,"success_rate":0.4,"avg_plan_time_seconds":0.09,"peak_gpu_mem_mb":850,"model_size_mb":500,"run_id":"uniform_opt30_seed0","source_output_dir":"results/wall/uniform_int8/opt_steps_30/seed_0","timestamp_utc":"2026-02-09T00:00:00Z"}

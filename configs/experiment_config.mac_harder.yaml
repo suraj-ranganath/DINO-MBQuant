@@ -1,0 +1,50 @@
+project_root: .
+
+dino:
+  repo_path: ./third_party_dino_wm
+  plan_config_name: plan_wall.yaml
+  ckpt_base_path: /Users/suraj/Downloads
+  model_name: wall_single
+  model_epoch: latest
+
+quantization:
+  # On Mac, force fake_int8 fallback for stable execution.
+  backend: fake_int8
+  fallback_backend: fake_int8
+
+variants:
+  fp16:
+    quantize_targets: []
+  uniform_int8:
+    quantize_targets: [encoder, predictor]
+  mixed_int8:
+    quantize_targets: [predictor]
+
+evaluation:
+  opt_steps: [10, 30]
+  seeds: [0]
+  n_evals: 5
+  goal_source: random_action
+  goal_H: 5
+
+paths:
+  variants_root: results/variants
+  wall_root: results/wall_harder
+  figures_root: figures_harder
+  demo_artifacts_root: demo/demo_artifacts_harder
+
+sanity:
+  n_evals: 1
+  seed: 0
+  opt_steps: 30
+
+demo:
+  reference_opt_steps: 30
+  reference_seed: 0
+  candidate_pool: 10
+  episode_count: 5
+
+labels:
+  fp16: FP16
+  uniform_int8: Uniform INT8
+  mixed_int8: Mixed INT8 (encoder FP16)

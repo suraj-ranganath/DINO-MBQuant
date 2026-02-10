@@ -1,0 +1,30 @@
+{
+  "shape": {
+    "batch_size": 128,
+    "token_dim": 196,
+    "emb_dim": 404
+  },
+  "runs": {
+    "torch_mps_fp16": {
+      "total_seconds": 3.057846250012517,
+      "per_iter_ms": 382.2307812515646
+    },
+    "torch_mps_fake_int8": {
+      "total_seconds": 3.0787496669217944,
+      "per_iter_ms": 384.8437083652243
+    },
+    "coreml_fp16": {
+      "total_seconds": 1.8892528340220451,
+      "per_iter_ms": 236.15660425275564
+    },
+    "coreml_int8": {
+      "total_seconds": 1.8942441251128912,
+      "per_iter_ms": 236.7805156391114
+    }
+  },
+  "speedup_vs_torch_mps_fp16": {
+    "torch_mps_fake_int8": 0.993210420082586,
+    "coreml_fp16": 1.61854792272702,
+    "coreml_int8": 1.6142830849905783
+  }
+}

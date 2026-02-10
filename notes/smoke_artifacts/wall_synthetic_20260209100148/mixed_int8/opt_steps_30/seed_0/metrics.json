@@ -1,0 +1,1 @@
+{"variant":"mixed_int8","opt_steps":30,"seed":0,"success_rate":0.6,"avg_plan_time_seconds":0.10,"peak_gpu_mem_mb":870,"model_size_mb":560,"run_id":"mixed_opt30_seed0","source_output_dir":"results/wall/mixed_int8/opt_steps_30/seed_0","timestamp_utc":"2026-02-09T00:00:00Z"}

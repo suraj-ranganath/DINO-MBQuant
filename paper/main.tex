@@ -1,0 +1,125 @@
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{float}
+
+\title{Encoder-Preserving Mixed-Precision Quantization for DINO-WM under a Tiny Compute Budget}
+
+\author{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We study weight-only quantization for planning in visual world models under a strict tiny-paper budget (single environment, three model variants, minimal sweep, and replayable demo).
+Using DINO-WM on Wall, we compare FP16, uniform INT8 (encoder + predictor), and encoder-preserving mixed INT8 (predictor-only INT8).
+Across opt\_steps $\{10,30\}$ in our Mac MPS setting, all variants reach identical success, so accuracy does not separate methods in this regime.
+However, memory footprint changes substantially: relative to FP16, uniform INT8 reduces model size by 57.2\% and mixed INT8 by 27.6\%.
+To obtain true Apple-side acceleration, we benchmark an Apple-native CoreML path and find 1.76--1.79$\times$ predictor speedup over the PyTorch MPS baseline, with INT8 CoreML packages 49.6\% smaller than FP16.
+We provide a reproducible pipeline and replay viewer, and we discuss why backend-specific kernels matter for practical quantized planning.
+\end{abstract}
+
+\section{Introduction}
+Spatial planning with world models is increasingly attractive because control can be optimized in latent space instead of raw pixels \citep{ha2018worldmodels,hafner2018planet,hafner2019dreamer,hafner2023dreamerv3,hafner2025naturedreamer}.  
+At the same time, deployment constraints motivate model compression, and post-training quantization has become a standard tool in large-scale inference systems \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.  
+For world models specifically, recent evidence suggests that quantization behavior depends strongly on architectural role and downstream planning objective \citep{fu2026quantwm}.
+
+We focus on DINO-WM \citep{zhou2024dinowm}, which uses pretrained visual features from DINOv2 \citep{oquab2023dinov2}.  
+Our central question is simple: under a minimal engineering budget, does preserving encoder precision provide a better efficiency--quality tradeoff than uniform quantization?
+
+\textbf{Contributions.}
+\begin{itemize}
+\item We implement a reproducible quantization pipeline for DINO-WM with three variants: FP16, uniform INT8, and encoder-preserving mixed INT8.
+\item We provide a compact Wall-only benchmark and a Mac-friendly replay demo suitable for workshop artifact review.
+\item We report that, in the current Wall regime, success saturates at 100\% for all variants, while memory and latency diverge substantially.
+\end{itemize}
+
+\section{Related Work}
+\textbf{World models for control.} Early latent-dynamics planning systems established the effectiveness of compact predictive models for control \citep{ha2018worldmodels,hafner2018planet}.  
+Dreamer-style methods advanced this direction to larger and more diverse tasks \citep{hafner2019dreamer,hafner2023dreamerv3,hafner2025naturedreamer}.  
+DINO-WM brings pretrained visual priors into this pipeline and demonstrates strong zero-shot planning behavior \citep{zhou2024dinowm}.
+
+\textbf{Post-training quantization.} Modern PTQ methods for transformer inference show that performance is sensitive to where and how quantization is applied \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.  
+The dedicated world-model quantization study in \citet{fu2026quantwm} motivates our focus on component-specific precision policies rather than monolithic quantization.
+
+\section{Experimental Setup}
+We evaluate on the Wall environment using the native DINO-WM planning output metric (\texttt{success}) without redefining task scoring \citep{zhou2024dinowm}.  
+All runs use the same pretrained checkpoint, planning code path, and random seed policy.
+
+Our evaluation grid is deliberately small: variants $\in$ \{FP16, uniform INT8, mixed INT8\}, opt\_steps $\in \{10,30\}$, seed $=0$, and $n\_evals=5$ episodes per run.
+We record success rate, average wall-clock planning time per episode, peak GPU memory proxy, and serialized model size.
+
+\section{Method}
+We use weight-only INT8 conversion for \texttt{Linear} layers.
+\begin{itemize}
+\item \textbf{FP16}: no quantization.
+\item \textbf{Uniform INT8}: quantize encoder and predictor.
+\item \textbf{Mixed INT8}: keep encoder in FP16, quantize predictor.
+\end{itemize}
+This directly tests whether preserving encoder precision changes planning behavior relative to uniform quantization under matched task settings.
+
+\section{Experiments}
+Figure~\ref{fig:success} shows success vs optimization steps. In this regime, all lines saturate at 1.00, so quality is indistinguishable.
+Figure~\ref{fig:apple} and Table~\ref{tab:eff} show the efficiency tradeoff.
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{../figures/success_vs_opt_steps.pdf}{
+    \includegraphics[width=0.95\linewidth]{../figures/success_vs_opt_steps.pdf}
+  }{
+    \fbox{\parbox[c][4.0cm][c]{0.95\linewidth}{\centering Placeholder for success-vs-opt-steps figure}}
+  }
+  \caption{Planning success versus optimization steps on Wall. All variants saturate at 1.00 in this setup.}
+  \label{fig:success}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \IfFileExists{../figures/mac_predictor_latency.pdf}{
+    \includegraphics[width=0.95\linewidth]{../figures/mac_predictor_latency.pdf}
+  }{
+    \fbox{\parbox[c][3.8cm][c]{0.95\linewidth}{\centering Placeholder for Apple predictor latency plot}}
+  }
+  \caption{Apple runtime benchmark (predictor module): CoreML FP16/INT8 are substantially faster than PyTorch MPS in our setting.}
+  \label{fig:apple}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Variant & Success@30 & Avg Time@30 (s) & Model Size (MB) \\
+\midrule
+FP16 & 1.00 & 7.87 & 204.99 \\
+Uniform INT8 & 1.00 & 8.98 & 87.72 \\
+Mixed INT8 & 1.00 & 9.38 & 148.31 \\
+\bottomrule
+\end{tabular}
+\caption{Efficiency summary for opt\_steps=30. Uniform INT8 gives the largest size reduction; all methods have equal success here.}
+\label{tab:eff}
+\end{table}
+
+Relative to FP16, uniform INT8 reduces model size by 57.2\% and mixed INT8 by 27.6\%.  
+At opt\_steps=30, latency increases by 14.2\% (uniform) and 19.3\% (mixed) in our current MPS implementation.
+In a dedicated predictor benchmark on the same machine, CoreML FP16 and INT8 achieve 1.79$\times$ and 1.76$\times$ speedup vs PyTorch MPS FP16, while CoreML INT8 package size is 49.6\% smaller than CoreML FP16.
+These results indicate that runtime/backend selection dominates observed speed on Apple Silicon.
+
+\section{Demo}
+We provide a replay-based Streamlit viewer that loads saved trajectories and videos for each variant.
+The demo is GPU-free on Mac and enables rapid qualitative checks of trajectory behavior and success/failure tags across variants.
+
+\section{Limitations}
+This tiny-paper MVP is limited to one environment, one quantization family (weight-only INT8), one seed, and no activation quantization.
+The Wall setup saturates in success, preventing conclusions about accuracy ranking between quantization policies.
+Our efficiency numbers are from a Mac MPS path with non-fused INT8 wrappers; absolute latency may differ on optimized GPU kernels.
+Future work should include harder tasks, additional seeds, CUDA-native INT8 backends, and ablations beyond linear-layer weight-only quantization.
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\end{document}

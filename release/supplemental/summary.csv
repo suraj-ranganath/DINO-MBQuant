@@ -1,0 +1,7 @@
+variant,opt_steps,seed,success_rate,avg_plan_time_seconds,peak_gpu_mem_mb,model_size_mb,run_id,source_output_dir,timestamp_utc
+fp16,10,0,1.0,7.7741342834196985,0.0,204.9866600036621,fp16_opt10_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/fp16/opt_steps_10/seed_0,2026-02-10T05:26:54Z
+fp16,30,0,1.0,7.866557283187285,0.0,204.9866600036621,fp16_opt30_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/fp16/opt_steps_30/seed_0,2026-02-10T05:27:33Z
+mixed_int8,10,0,1.0,9.205830599972979,0.0,148.30984115600586,mixed_int8_opt10_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/mixed_int8/opt_steps_10/seed_0,2026-02-10T05:29:46Z
+mixed_int8,30,0,1.0,9.381884241756051,0.0,148.30984115600586,mixed_int8_opt30_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/mixed_int8/opt_steps_30/seed_0,2026-02-10T05:30:33Z
+uniform_int8,10,0,1.0,8.430990224983542,0.0,87.71804428100586,uniform_int8_opt10_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/uniform_int8/opt_steps_10/seed_0,2026-02-10T05:28:15Z
+uniform_int8,30,0,1.0,8.982559833396227,0.0,87.71804428100586,uniform_int8_opt30_seed0,/Users/suraj/Desktop/EAI_DINO/results/wall_harder/uniform_int8/opt_steps_30/seed_0,2026-02-10T05:29:00Z
