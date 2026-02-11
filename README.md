@@ -100,6 +100,14 @@ Use this for the stronger workshop narrative (paired evaluation, budget sensitiv
 bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml my_transition_run
 ```
 
+If a run is interrupted, resume safely without overwriting completed stage outputs:
+```bash
+bash scripts/resume_transition_run.sh configs/experiment_config.mac_transition_study.yaml my_transition_run resume_try1
+```
+This writes resumed stage outputs into:
+- `results/wall_transition/my_transition_run/resume/resume_try1/budget_bB/...`
+- `results/wall_transition/my_transition_run/resume/resume_try1/layerwise_int4/...`
+
 Key outputs:
 - `results/my_transition_run/summary.csv`
 - `results/my_transition_run/summary_grouped.csv`

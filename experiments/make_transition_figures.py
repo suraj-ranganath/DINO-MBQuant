@@ -55,13 +55,35 @@ def main() -> None:
     fig_root = resolve_path(cfg, key="figures_root", run_name=args.run_name)
     fig_root.mkdir(parents=True, exist_ok=True)
 
+    # Frontier figure (core variants only; layerwise variants are shown separately).
+    core_frontier_variants = [
+        "fp16",
+        "uniform_int8",
+        "mixed_int8",
+        "uniform_int4",
+        "mixed_int4",
+        "uniform_int3",
+        "mixed_int3",
+    ]
+    frontier_df = df[df["variant"].isin(core_frontier_variants)].copy()
+    if frontier_df.empty:
+        frontier_df = df.copy()
+
     # Frontier figure (one panel per budget if multiple budgets exist).
-    budgets = list(df["budget_id"].dropna().unique()) if "budget_id" in df.columns else ["default"]
+    budgets = (
+        list(frontier_df["budget_id"].dropna().unique())
+        if "budget_id" in frontier_df.columns
+        else ["default"]
+    )
     n_panels = max(1, len(budgets))
     fig, axes = plt.subplots(1, n_panels, figsize=(6.2 * n_panels, 4.0), squeeze=False)
     for i, budget_id in enumerate(budgets):
         ax = axes[0, i]
-        sub = df[df["budget_id"] == budget_id] if "budget_id" in df.columns else df
+        sub = (
+            frontier_df[frontier_df["budget_id"] == budget_id]
+            if "budget_id" in frontier_df.columns
+            else frontier_df
+        )
         for _, r in sub.iterrows():
             fam = _family(str(r["variant"]))
             x = float(r["model_size_mean"])
@@ -177,13 +199,64 @@ def main() -> None:
         fig.savefig(enc_curve_path, bbox_inches="tight")
         plt.close(fig)
 
+    # Difficulty-conditioned success (computed from episode outcomes).
+    outcomes_path = run_scoped_file("results/episode_outcomes.csv", run_name=args.run_name)
+    if outcomes_path.exists():
+        out_df = pd.read_csv(outcomes_path)
+        need_cols = {"budget_id", "variant", "goal_distance_init", "success"}
+        if need_cols.issubset(set(out_df.columns)):
+            sub = out_df[
+                (out_df["budget_id"] == "bA")
+                & (out_df["variant"].isin(["fp16", "uniform_int4", "mixed_int4"]))
+            ].copy()
+            sub = sub.dropna(subset=["goal_distance_init"])
+            if not sub.empty:
+                sub["difficulty_bin"] = pd.qcut(
+                    sub["goal_distance_init"], q=3, labels=["easy", "medium", "hard"]
+                )
+                agg = (
+                    sub.groupby(["variant", "difficulty_bin"], dropna=False, as_index=False)["success"]
+                    .mean()
+                    .rename(columns={"success": "success_rate"})
+                )
+                fig, ax = plt.subplots(figsize=(6.8, 4.0))
+                xcats = ["easy", "medium", "hard"]
+                x = np.arange(len(xcats))
+                keys = ["fp16", "uniform_int4", "mixed_int4"]
+                width = 0.22
+                for i, key in enumerate(keys):
+                    ys = []
+                    for c in xcats:
+                        row = agg[(agg["variant"] == key) & (agg["difficulty_bin"] == c)]
+                        ys.append(float(row.iloc[0]["success_rate"]) if not row.empty else np.nan)
+                    ax.bar(
+                        x + (i - 1) * width,
+                        ys,
+                        width=width,
+                        label=labels.get(key, key),
+                        color=_color(_family(key)),
+                        alpha=0.9 if key != "fp16" else 0.75,
+                    )
+                ax.set_xticks(x)
+                ax.set_xticklabels(xcats)
+                ax.set_ylim(0.0, 1.02)
+                ax.set_ylabel("Success Rate")
+                ax.set_xlabel("Goal-Difficulty Tercile (initial goal distance)")
+                ax.set_title("Difficulty-conditioned success (Budget bA, paired episodes)")
+                ax.legend(frameon=True, fontsize=8)
+                fig.tight_layout()
+                diff_path = fig_root / "difficulty_conditioned_success.pdf"
+                fig.savefig(diff_path, bbox_inches="tight")
+                plt.close(fig)
+
     print(f"Wrote {frontier_path}")
     if (fig_root / "budget_sensitivity.pdf").exists():
         print(f"Wrote {fig_root / 'budget_sensitivity.pdf'}")
     if (fig_root / "encoder_retention_curve.pdf").exists():
         print(f"Wrote {fig_root / 'encoder_retention_curve.pdf'}")
+    if (fig_root / "difficulty_conditioned_success.pdf").exists():
+        print(f"Wrote {fig_root / 'difficulty_conditioned_success.pdf'}")
 
 
 if __name__ == "__main__":
     main()
-

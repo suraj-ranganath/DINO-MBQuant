@@ -56,6 +56,14 @@ def main() -> None:
         default=False,
         help="Allow writing into an existing run folder (for resume/continuation).",
     )
+    parser.add_argument(
+        "--stage-subdir",
+        default=None,
+        help=(
+            "Optional subfolder under the run root for this stage. "
+            "Useful for resumptions that should not touch earlier stage folders."
+        ),
+    )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     parser.add_argument(
         "--interleave-variants",
@@ -101,6 +109,8 @@ def main() -> None:
             "Choose a new --run-name, or pass --allow-existing to continue."
         )
     wall_root.mkdir(parents=True, exist_ok=True)
+    stage_root = wall_root / args.stage_subdir if args.stage_subdir else wall_root
+    stage_root.mkdir(parents=True, exist_ok=True)
 
     failures = []
 
@@ -193,9 +203,9 @@ def main() -> None:
         budget_id = str(budget_cfg["budget_id"])
         try:
             if has_budget_grid:
-                run_dir = wall_root / variant_name / f"budget_{budget_id}" / f"seed_{seed}"
+                run_dir = stage_root / variant_name / f"budget_{budget_id}" / f"seed_{seed}"
             else:
-                run_dir = wall_root / variant_name / f"opt_steps_{opt_steps}" / f"seed_{seed}"
+                run_dir = stage_root / variant_name / f"opt_steps_{opt_steps}" / f"seed_{seed}"
             run_dir.mkdir(parents=True, exist_ok=True)
             metrics_path = run_dir / "metrics.json"
 
