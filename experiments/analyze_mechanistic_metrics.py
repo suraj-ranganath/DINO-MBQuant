@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import yaml
 
+from experiments.plot_theme import (
+    apply_paper_theme,
+    family_from_variant,
+    variant_color,
+)
 from experiments.run_paths import resolve_path, run_scoped_file
 
 
@@ -35,13 +41,7 @@ def _last_final_eval(logs_path: Path) -> Dict[str, Any]:
 
 
 def _variant_family(name: str) -> str:
-    if name.startswith("uniform_"):
-        return "uniform"
-    if name.startswith("mixed_"):
-        return "mixed"
-    if name == "fp16":
-        return "fp16"
-    return "other"
+    return family_from_variant(name)
 
 
 def main() -> None:
@@ -114,27 +114,64 @@ def main() -> None:
     )
     fig_path.parent.mkdir(parents=True, exist_ok=True)
 
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(6.4, 4.0))
-    colors = {"fp16": "#4D4D4D", "uniform": "#D55E00", "mixed": "#009E73", "other": "#666666"}
+    apply_paper_theme()
+    fig, ax = plt.subplots(figsize=(6.8, 4.2))
     for fam, g in mech_df.groupby("family"):
+        marker = "o"
+        if fam == "fp16":
+            marker = "D"
+        elif fam == "mixed":
+            marker = "s"
+        elif fam == "uniform":
+            marker = "o"
         ax.scatter(
             g["mean_div_visual_emb"],
             g["success_rate"],
-            s=55,
-            alpha=0.9,
+            s=58,
+            alpha=0.65,
             label=fam,
-            color=colors.get(fam, "#666666"),
+            marker=marker,
+            color=variant_color(g["variant"].iloc[0]),
             edgecolors="white",
             linewidths=0.8,
         )
-    for _, r in mech_df.iterrows():
-        ax.annotate(str(r["variant"]), (r["mean_div_visual_emb"], r["success_rate"]), textcoords="offset points", xytext=(4, 3), fontsize=7)
+
+    # Label only per-variant centroids to avoid unreadable text clutter.
+    centroids = (
+        mech_df.groupby("variant", as_index=False)
+        .agg(
+            mean_div_visual_emb=("mean_div_visual_emb", "mean"),
+            success_rate=("success_rate", "mean"),
+        )
+    )
+    for _, r in centroids.iterrows():
+        ax.annotate(
+            str(r["variant"]),
+            (r["mean_div_visual_emb"], r["success_rate"]),
+            textcoords="offset points",
+            xytext=(4, 3),
+            fontsize=7,
+            bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="#DDDDDD", alpha=0.75),
+        )
+
+    fit_df = mech_df[["mean_div_visual_emb", "success_rate"]].dropna()
+    if len(fit_df) >= 2:
+        x = fit_df["mean_div_visual_emb"]
+        y = fit_df["success_rate"]
+        coeff = pd.Series([0.0, 0.0], index=["m", "b"])
+        coeff["m"], coeff["b"] = np.polyfit(x, y, deg=1)
+        x_line = np.linspace(float(x.min()), float(x.max()), 100)
+        y_line = coeff["m"] * x_line + coeff["b"]
+        ax.plot(x_line, y_line, color="#333333", linestyle="--", linewidth=1.4, alpha=0.9, label="Trend")
+
+    rho = corrs.get("mean_div_visual_emb", {}).get("spearman")
+    rho_txt = f", Spearman $\\rho$={rho:.2f}" if isinstance(rho, float) else ""
     ax.set_xlabel("Final mean divergence in visual embedding")
     ax.set_ylabel("Success rate")
-    ax.set_title("Mechanistic signal: embedding divergence vs planning success")
+    ax.set_title(f"Mechanistic Signal: Embedding Divergence vs Success{rho_txt}")
     ax.set_ylim(0.0, 1.02)
-    ax.legend(frameon=True)
+    ax.grid(alpha=0.2)
+    ax.legend(frameon=True, ncol=2)
     fig.tight_layout()
     fig.savefig(fig_path, bbox_inches="tight")
     plt.close(fig)

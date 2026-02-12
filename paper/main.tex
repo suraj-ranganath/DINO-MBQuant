@@ -32,6 +32,20 @@ We study this in DINO-WM on Wall with paired-goal evaluation and mixed-bit varia
 Our contribution is empirical but decision-relevant: we map where low-bit compression remains safe, where it fails, and which allocation choices are most promising under an explicit paired protocol.
 Concretely, we provide three takeaways: (1) a paired mixed-bit frontier showing an 8/6-safe, 4-transition, 3-collapse pattern; (2) robustness checks across two planner budgets plus goal-difficulty slices with consistent mixed-vs-uniform INT4 direction; and (3) encoder-focused evidence from asymmetric and layerwise ablations that sharpens future hypotheses.
 
+\section{Related Work and Broader Research Direction}
+Mixed-precision quantization has long argued that sensitivity is layer-dependent rather than uniform, with automated policies that optimize hardware-constrained objectives \citep{wang2018haq,dong2019hawqv2}.
+Recent low-bit post-training quantization for foundation models further supports this module-sensitivity view: practical 4--8 bit deployment typically depends on how precision is allocated, which channels are protected, and how outliers are handled \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.
+Our results are consistent with that broader pattern, but in a planning setting where the metric is task success instead of perplexity or top-1 accuracy.
+
+In world models, most efficiency work still emphasizes architecture or training design \citep{ha2018worldmodels,hafner2018planet,hafner2019dreamer,hafner2023dreamerv3}, while quantization-specific evidence is only beginning to appear \citep{fu2026quantwm,liu2025lowbitmodelquantizationdeep}.
+The present study contributes a paired-evaluation template for this gap.
+The key observation is not that one specific mixed setting always wins, but that a transition regime exists where placement of bits changes planning outcomes.
+For example, Table~\ref{tab:sizefair} shows that near-size encoder-heavy variants (E6/P4, E8/P4) improve over uniform INT4, while uniform INT6 demonstrates that higher total precision can still dominate under equal or slightly larger budgets.
+
+This suggests a broader research direction for efficient spatial reasoning: treat bit allocation as a planning-aware resource-allocation problem, not a post-hoc compression detail.
+A scalable agenda is to optimize encoder/predictor precision jointly under explicit memory and latency constraints, then test whether the same transition structure holds across environments, checkpoints, and world-model families.
+If the structure persists, mixed-bit policies could become a first-class design axis for world-model deployment, analogous to horizon and optimizer budget choices.
+
 \section{Setup}
 \paragraph{Task and metric.}
 We use pretrained DINO-WM \citep{zhou2024dinowm} on Wall and keep the repository-native planning success metric from planning logs.
@@ -74,41 +88,27 @@ In contrast, all 3-bit variants are 0.0 at both budgets.
 \paragraph{4-bit is allocation-sensitive.}
 At 4 bits, mixed INT4 is higher than uniform INT4: 0.267 vs 0.067 at bA, and 0.500 vs 0.200 at bB.
 Paired analysis gives +0.20 at bA (95\% CI [0.00, 0.40]) and +0.30 at bB ([0.00, 0.55]), with sign-test $p=0.109$ in both budgets.
-We therefore interpret the 4-bit effect as \emph{directional} rather than statistically definitive.
+We therefore interpret the 4-bit effect as \emph{directional} rather than statistically definitive (paired detail in Appendix Table~\ref{tab:paired} and forest view in Figure~\ref{fig:forest}).
 
 \paragraph{Fairness check: allocation versus total precision budget.}
 Mixed INT4 (138.84 MB) is substantially larger than uniform INT4 (68.12 MB), so mixed-vs-uniform alone does not isolate allocation from total precision.
 To partially control this, we compare near-size asymmetric variants at bA: E6/P4 (73.19 MB, success 0.300) and E8/P4 (78.25 MB, 0.233) both improve over uniform INT4 (68.12 MB, 0.067), while remaining far smaller than mixed INT4.
-This suggests encoder-side bits are useful even under tight size budgets, while higher total precision (for example uniform INT6 at 77.92 MB, success 0.533) remains another strong driver.
+This suggests encoder-side bits are useful even under tight size budgets, while higher total precision (for example uniform INT6 at 77.92 MB, success 0.533) remains another strong driver (size-aware context in Appendix Table~\ref{tab:sizefair} and map in Figure~\ref{fig:asym}).
 
 \paragraph{Asymmetric and layerwise evidence supports encoder sensitivity.}
 At bA, E6/P4 reaches 0.300 success at 73.19 MB, improving over uniform INT4 (0.067 at 68.12 MB), with paired delta +0.233 (95\% CI [0.033, 0.433]).
 By contrast, increasing predictor bits while keeping encoder at INT4 (E4/P8, E4/P6) does not match mixed INT4.
 Numerically, E4/P8 is 0.133 with paired delta $-0.133$ relative to mixed INT4, suggesting that spending extra bits on the predictor cannot compensate for encoder degradation at this frontier.
-Layerwise INT4 ablation (Appendix, Figure~\ref{fig:enc_curve}) is non-monotonic but peaks when the encoder is fully preserved (0.25 at 100\% FP16), supporting the hypothesis that encoder precision is often a key bottleneck near the 4-bit frontier.
+Layerwise INT4 ablation (Appendix Figure~\ref{fig:enc_curve}) is non-monotonic but peaks when the encoder is fully preserved (0.25 at 100\% FP16), supporting the hypothesis that encoder precision is often a key bottleneck near the 4-bit frontier.
 
 \paragraph{Mechanistic diagnostics are consistent with representation degradation.}
 Across 65 run-level points (variant $\times$ budget $\times$ seed), success correlates negatively with divergence metrics from planning logs: Spearman $\rho=-0.928$ for mean state distance and $\rho=-0.708$ for visual-embedding divergence (Appendix Figure~\ref{fig:mech}).
 This does not prove causality, but it supports a plausible mechanism: low-bit encoder degradation weakens latent geometry used for goal-directed planning.
 
-\section{Related Work and Broader Research Direction}
-Mixed-precision quantization has long argued that sensitivity is layer-dependent rather than uniform, with automated policies that optimize hardware-constrained objectives \citep{wang2018haq,dong2019hawqv2}.
-Recent low-bit post-training quantization for foundation models further supports this module-sensitivity view: practical 4--8 bit deployment typically depends on how precision is allocated, which channels are protected, and how outliers are handled \citep{dettmers2022llmint8,frantar2022gptq,xiao2022smoothquant,lin2023awq}.
-Our results are consistent with that broader pattern, but in a planning setting where the metric is task success instead of perplexity or top-1 accuracy.
-
-In world models, most efficiency work still emphasizes architecture or training design \citep{ha2018worldmodels,hafner2018planet,hafner2019dreamer,hafner2023dreamerv3}, while quantization-specific evidence is only beginning to appear \citep{fu2026quantwm,liu2025lowbitmodelquantizationdeep}.
-The present study contributes a paired-evaluation template for this gap.
-The key observation is not that one specific mixed setting always wins, but that a transition regime exists where placement of bits changes planning outcomes.
-For example, Table~\ref{tab:sizefair} shows that near-size encoder-heavy variants (E6/P4, E8/P4) improve over uniform INT4, while uniform INT6 demonstrates that higher total precision can still dominate under equal or slightly larger budgets.
-
-This suggests a broader research direction for efficient spatial reasoning: treat bit allocation as a planning-aware resource-allocation problem, not a post-hoc compression detail.
-A scalable agenda is to optimize encoder/predictor precision jointly under explicit memory and latency constraints, then test whether the same transition structure holds across environments, checkpoints, and world-model families.
-If the structure persists, mixed-bit policies could become a first-class design axis for world-model deployment, analogous to horizon and optimizer budget choices.
-
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.98\linewidth]{../figures_mixedbit_story/my_mixedbit_run/transition_frontier.pdf}
-  \caption{Success--size frontier for the paired mixed-bit study (budgets bA and bB). The 8/6-bit region is stable, the 3-bit region collapses, and the 4-bit region is allocation-sensitive (mixed above uniform). Error bars are run-level 95\% confidence intervals over seed-level runs.}
+  \caption{Figure 1: Success--size Pareto frontier for the paired mixed-bit study (budgets bA and bB). Each point is one variant, with vertical bars showing run-level 95\% confidence intervals over seeds. Stars denote non-dominated Pareto points (higher success, lower model size). The frontier shows a stable 8/6-bit region, an allocation-sensitive 4-bit transition, and a collapsed 3-bit region.}
   \label{fig:frontier}
 \end{figure}
 
@@ -192,6 +192,11 @@ bA: enc4\_pred8 - mixed\_int4 & 30 & -0.133 & [-0.333, 0.067] & 0.344 \\
 \label{tab:paired}
 \end{table}
 
+\noindent\textbf{Inference.}
+Rows 1--2 show that mixed INT4 consistently outperforms uniform INT4 under paired episodes in both budgets, but with moderate uncertainty.
+Rows 3--4 strengthen the allocation interpretation: encoder-heavy E6/P4 improves over uniform INT4, while predictor-heavy E4/P8 does not recover mixed INT4.
+Together, the table supports an encoder-priority hypothesis near the 4-bit boundary.
+
 \subsection{Size-Fairness and Allocation Context}
 Table~\ref{tab:sizefair} makes the size confound explicit.
 Mixed INT4 is much larger than uniform INT4, so we also compare near-size asymmetric variants.
@@ -219,6 +224,11 @@ Mixed INT4 (bB) & 0.500 & 138.84 & larger precision budget \\
 \label{tab:sizefair}
 \end{table}
 
+\noindent\textbf{Inference.}
+This table is the key fairness check for Figure~\ref{fig:frontier}.
+If the mixed INT4 gain were only due to larger size, near-size asymmetric variants would be expected to match uniform INT4.
+Instead, encoder-heavy near-size variants improve over uniform INT4, indicating that \emph{where} bits are allocated matters in addition to total precision.
+
 \subsection{Budget Robustness Context}
 Figure~\ref{fig:budget} shows that the mixed-vs-uniform INT4 gap persists when planner budget increases from bA to bB.
 This reduces the likelihood that the observed gap is only an artifact of one optimization budget.
@@ -230,6 +240,10 @@ This reduces the likelihood that the observed gap is only an artifact of one opt
   \label{fig:budget}
 \end{figure}
 
+\noindent\textbf{Inference.}
+The mixed-over-uniform INT4 direction survives when the planner budget increases from bA to bB.
+This reduces the chance that the headline finding is a single-budget artifact and supports treating the 4-bit transition as a structural regime.
+
 \subsection{Encoder-Localization Context}
 Figure~\ref{fig:enc_curve} gives a coarse localization test: with predictor fixed at INT4, preserving more encoder precision improves peak success, although intermediate points are non-monotonic.
 This supports the main claim while motivating finer block-level studies.
@@ -240,6 +254,10 @@ This supports the main claim while motivating finer block-level studies.
   \caption{Encoder-retention sweep (INT4 predictor). The highest mean success occurs when encoder precision is fully preserved.}
   \label{fig:enc_curve}
 \end{figure}
+
+\noindent\textbf{Inference.}
+Even in a coarse 5-point sweep, success rises toward the fully preserved encoder endpoint.
+Although non-monotonicity remains, the curve indicates that failures at 4-bit are not uniformly distributed across modules and that encoder precision is a dominant control variable.
 
 \subsection{Difficulty-Conditioned Context}
 Figure~\ref{fig:difficulty} bins episodes by initial goal distance.
@@ -270,6 +288,10 @@ bB & upper half & 10 & 0.1 & 0.6 \\
   \label{fig:difficulty}
 \end{figure}
 
+\noindent\textbf{Inference.}
+The mixed-over-uniform direction appears in low and medium bins and does not reverse in hard bins.
+This suggests the allocation effect is not confined to one narrow difficulty regime, which improves confidence in transfer to broader evaluation sets.
+
 \subsection{Mechanistic Context}
 Figure~\ref{fig:mech} links variant-level success to divergence metrics extracted from planning logs.
 Correlations are computed over 65 run-level points (variant $\times$ budget $\times$ seed), with pooled budgets.
@@ -282,6 +304,10 @@ The negative trend supports a representation-degradation explanation for low-bit
   \label{fig:mech}
 \end{figure}
 
+\noindent\textbf{Inference.}
+The negative trend links quantization behavior to representation quality rather than only planner noise.
+This does not establish causality, but it narrows follow-up experiments toward encoder-preserving or geometry-preserving quantization strategies.
+
 \subsection{Mixed-Bit Maps for Hypothesis Generation}
 The next two figures are exploratory and hypothesis-generating.
 Figure~\ref{fig:ladder} visualizes the uniform/mixed bit ladder directly; Figure~\ref{fig:asym} maps asymmetric encoder/predictor allocations.
@@ -290,16 +316,24 @@ Together they motivate a budgeted bit-allocation optimization problem for future
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/appendix_bit_ladder.pdf}
-  \caption{Uniform-vs-mixed bit ladder across budgets. The 4-bit region is where allocation effects are largest.}
+  \caption{Uniform-vs-mixed bit ladder across budgets. Stars denote Pareto points in success--size space projected onto this ladder view.}
   \label{fig:ladder}
 \end{figure}
+
+\noindent\textbf{Inference.}
+The ladder view highlights a phase-transition-like structure: stable high-bit behavior, a sharp low-bit collapse, and a sensitive middle regime.
+The regime structure motivates adaptive bit-allocation policies instead of one-shot uniform compression.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/appendix_asymmetric_allocation_map.pdf}
-  \caption{Asymmetric allocation map at bA. Higher encoder precision at fixed predictor precision is generally more beneficial than the reverse.}
+  \caption{Asymmetric allocation map at bA. Marker color indicates success; star markers denote variants on the success--size Pareto frontier.}
   \label{fig:asym}
 \end{figure}
+
+\noindent\textbf{Inference.}
+At comparable predictor precision, moving encoder precision upward typically improves outcomes more than the reverse.
+Pareto-starred points concentrate in encoder-heavier configurations, reinforcing the encoder-priority conclusion from Tables~\ref{tab:paired} and \ref{tab:sizefair}.
 
 \begin{figure}[h]
   \centering
@@ -307,5 +341,9 @@ Together they motivate a budgeted bit-allocation optimization problem for future
   \caption{Forest plot of paired deltas with bootstrap confidence intervals for key comparisons.}
   \label{fig:forest}
 \end{figure}
+
+\noindent\textbf{Inference.}
+The forest view makes effect direction and uncertainty transparent in one place.
+Positive deltas for mixed-vs-uniform INT4 and encoder-heavy-vs-uniform comparisons support the framing that allocation matters most in the transition regime.
 
 \end{document}
