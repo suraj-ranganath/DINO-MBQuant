@@ -17,6 +17,8 @@ rsync -a \
   --exclude '.venv' \
   --exclude '.venv311' \
   --exclude '__pycache__' \
+  --exclude 'notes' \
+  --exclude 'paper' \
   --exclude 'results' \
   --exclude 'logs' \
   --exclude 'saved_runs' \
@@ -26,17 +28,11 @@ rsync -a \
   --exclude 'paper/*.pdf' \
   ./ "$BUNDLE_DIR/repo/"
 
-# Include submission PDF if already compiled.
-if [[ -f paper/paper.pdf ]]; then
-  cp -f paper/paper.pdf "$BUNDLE_DIR/"
-fi
-
 cat > "$BUNDLE_DIR/README_REVIEW.md" <<'EOT'
 Double-blind reviewer bundle
 
 Contents:
 - repo/: source snapshot without runtime artifacts
-- paper.pdf: submission PDF (if present at bundle time)
 
 Quick reproduction:
 1) Setup environment from repo/README.md

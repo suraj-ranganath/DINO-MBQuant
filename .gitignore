@@ -13,6 +13,8 @@ logs/
 logs_transition_run_*.txt
 saved_runs/
 release/
+notes/
+paper/
 figures/*.pdf
 figures/*.png
 figures_*/

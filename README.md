@@ -10,6 +10,8 @@ Using DINO-WM on the Wall planning task, we run paired-goal mixed-bit evaluation
 Across runs, we observe a recurring regime structure: 8/6-bit settings stay close to FP16, 3-bit settings collapse, and 4-bit settings are allocation-sensitive.
 In the transition region, preserving encoder precision improves planning relative to uniform quantization, motivating module-aware quantization as a broader research direction for efficient spatial reasoning.
 
+For double-blind review hygiene, this branch intentionally does not track internal `notes/` or `paper/` sources.
+
 This repo provides:
 - experiment runners for uniform, mixed, asymmetric, and layerwise quantization variants,
 - reproducible run orchestration scripts (fresh run + resume),
@@ -110,24 +112,8 @@ bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml <run_name>
 
 ## Paper + Release
 
-Compile canonical submission PDF:
-
-```bash
-bash scripts/compile_paper.sh
-```
-
-Output:
-- `paper/paper.pdf`
-
-Build release bundle:
-
-```bash
-bash scripts/build_release_bundle.sh
-```
-
-Outputs:
-- `release/paper.pdf`
-- `release/supplemental.zip`
+This `review-ready` branch intentionally excludes tracked `paper/` sources and internal notes for double-blind review.
+Keep submission PDF preparation on your private/main working branch.
 
 ## Double-Blind Review Workflow
 
