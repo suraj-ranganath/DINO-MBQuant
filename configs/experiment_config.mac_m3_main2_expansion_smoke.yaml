@@ -1,0 +1,71 @@
+project_root: .
+
+dino:
+  repo_path: ./third_party_dino_wm
+  plan_config_name: plan_wall.yaml
+  ckpt_base_path: /Users/anishpatnaik/Downloads
+  model_name: wall_single
+  model_epoch: latest
+
+quantization:
+  backend: fake_int8
+  fallback_backend: fake_int8
+
+variants:
+  fp16:
+    quantize_targets: []
+  uniform_int4:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 4
+  mixed_int4:
+    quantize_targets: [predictor]
+    quant_bits: 4
+  uniform_int8:
+    quantize_targets: [encoder, predictor]
+    quant_bits: 8
+
+evaluation:
+  n_evals: 2
+  seeds: [1]
+  goal_source: file
+  goal_H: 9
+  planner_max_iter: 1
+  render_videos: false
+  goal_file_path_template: results/paired_targets/{run_name}/budget_{budget_id}/seed_{seed}/plan_targets.pkl
+
+  budget_grid:
+    - id: bA
+      goal_H: 9
+      opt_steps: 1
+      planner_max_iter: 1
+      seeds: [1]
+      goal_source: file
+
+paired_targets:
+  root: results/paired_targets
+  generator_variant: fp16
+  generator_opt_steps: 1
+
+paths:
+  variants_root: results/variants_m3_main2_expansion_smoke
+  wall_root: results/wall_m3_main2_expansion_smoke
+  figures_root: figures_m3_main2_expansion_smoke
+  demo_artifacts_root: demo/demo_artifacts_m3_main2_expansion_smoke
+
+sanity:
+  n_evals: 1
+  seed: 1
+  opt_steps: 1
+
+demo:
+  reference_budget_id: bA
+  reference_opt_steps: 1
+  reference_seed: 1
+  candidate_pool: 4
+  episode_count: 2
+
+labels:
+  fp16: FP16
+  uniform_int4: Uniform INT4
+  mixed_int4: Mixed INT4 (enc FP16)
+  uniform_int8: Uniform INT8

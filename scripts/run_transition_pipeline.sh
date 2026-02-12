@@ -18,7 +18,7 @@ echo "[stage] Generate paired targets"
 python -m experiments.make_paired_targets --config "$CONFIG_PATH" --run-name "$RUN_NAME"
 
 echo "[stage] Optional sanity build for variants"
-python -m experiments.build_variants --config "$CONFIG_PATH" --run-name "$RUN_NAME" --goal-source random_state
+python -m experiments.build_variants --config "$CONFIG_PATH" --run-name "$RUN_NAME"
 
 echo "[stage] Main paired frontier (Budget A)"
 python -m experiments.run_wall_grid \

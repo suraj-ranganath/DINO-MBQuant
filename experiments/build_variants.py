@@ -29,28 +29,6 @@ def main() -> None:
         default=False,
         help="Allow writing into an existing run folder (for resume/continuation).",
     )
-    parser.add_argument(
-        "--goal-source",
-        default=None,
-        help="Optional goal source override for sanity runs (e.g., random_state or file).",
-    )
-    parser.add_argument(
-        "--goal-file-path",
-        default=None,
-        help="Optional goal_file_path when --goal-source=file.",
-    )
-    parser.add_argument(
-        "--goal-H",
-        type=int,
-        default=None,
-        help="Optional goal horizon override for sanity runs.",
-    )
-    parser.add_argument(
-        "--planner-max-iter",
-        type=int,
-        default=None,
-        help="Optional planner max_iter override for sanity runs.",
-    )
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
@@ -63,29 +41,20 @@ def main() -> None:
     sanity = cfg["sanity"]
     eval_cfg = cfg.get("evaluation", {})
 
-    sanity_goal_source = (
-        str(args.goal_source)
-        if args.goal_source is not None
-        else str(eval_cfg.get("goal_source", "random_state"))
-    )
-    sanity_goal_file_path = args.goal_file_path if args.goal_file_path else eval_cfg.get("goal_file_path")
-    if sanity_goal_source == "file" and not sanity_goal_file_path:
-        # This prevents transition-study configs (paired file goals) from crashing sanity stage.
-        print(
-            "[warn] build_variants sanity requested goal_source=file but no goal_file_path was provided. "
-            "Falling back to goal_source=random_state for sanity checks."
-        )
-        sanity_goal_source = "random_state"
-    sanity_goal_h = int(args.goal_H) if args.goal_H is not None else int(eval_cfg.get("goal_H", 5))
-    sanity_planner_max_iter = (
-        int(args.planner_max_iter)
-        if args.planner_max_iter is not None
-        else (
-            int(eval_cfg["planner_max_iter"])
-            if eval_cfg.get("planner_max_iter") is not None
-            else None
-        )
-    )
+    # Sanity runs should not depend on paired target manifests. If a config uses
+    # goal_source=file without a concrete static goal_file_path, force random_state.
+    goal_source_override = None
+    goal_file_path_override = None
+    goal_h_override = None
+    planner_max_iter_override = None
+    configured_goal_source = str(eval_cfg.get("goal_source", "random_state"))
+    configured_goal_file_path = eval_cfg.get("goal_file_path")
+    configured_goal_template = eval_cfg.get("goal_file_path_template")
+    if configured_goal_source == "file" and not configured_goal_file_path and configured_goal_template:
+        goal_source_override = "random_state"
+        goal_h_override = int(eval_cfg.get("goal_H", 5))
+    if eval_cfg.get("planner_max_iter") is not None:
+        planner_max_iter_override = int(eval_cfg["planner_max_iter"])
 
     for variant_name in cfg["variants"].keys():
         variant_root = variants_root / variant_name
@@ -99,10 +68,10 @@ def main() -> None:
             seed=int(sanity["seed"]),
             opt_steps=int(sanity["opt_steps"]),
             n_evals=int(sanity["n_evals"]),
-            goal_source_override=sanity_goal_source,
-            goal_file_path_override=sanity_goal_file_path,
-            goal_H_override=sanity_goal_h,
-            planner_max_iter_override=sanity_planner_max_iter,
+            goal_source_override=goal_source_override,
+            goal_file_path_override=goal_file_path_override,
+            goal_H_override=goal_h_override,
+            planner_max_iter_override=planner_max_iter_override,
             budget_id="sanity",
         )
 
