@@ -19,7 +19,7 @@ Main pipelines in this repo generate:
 - run-scoped figures (`figures.../<run_name>/...`),
 - notes for paper writing (`notes/<run_name>/...`),
 - optional replay artifacts for demo (`demo/.../<run_name>/...`),
-- paper PDF (`paper/main.pdf` and copied `paper/paper.pdf`).
+- paper PDF (`paper/paper.pdf`).
 
 The recommended research pipeline for current work is:
 - `scripts/run_mixedbit_story.sh` (mixed-bit main study + appendix analysis).
@@ -230,8 +230,7 @@ bash scripts/compile_paper.sh
 ```
 
 Outputs:
-- `paper/main.pdf`
-- `paper/paper.pdf` (copy of `main.pdf`)
+- `paper/paper.pdf`
 
 Submission recommendation:
 - use `paper/paper.pdf` (or `release/paper.pdf` after bundling).
