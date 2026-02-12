@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SRC_ROOT="${1:-/Users/suraj/Downloads}"
+SRC_ROOT="${1:-/path/to/assets_root}"
 MODE="${2:-symlink}" # symlink | copy
 
 SRC_DATASET="$SRC_ROOT/wall_single"

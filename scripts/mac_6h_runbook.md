@@ -3,7 +3,7 @@
 ## 0) Set paths
 
 ```bash
-cd /Users/suraj/Desktop/EAI_DINO
+cd /path/to/EAI_DINO
 bash scripts/setup_mac_env.sh python3.11 .venv311
 source .venv311/bin/activate
 export DATASET_DIR=/ABS/PATH/TO/data

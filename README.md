@@ -121,6 +121,27 @@ Outputs:
 - `release/paper.pdf`
 - `release/supplemental.zip`
 
+## Double-Blind Review Workflow
+
+This branch is prepared for anonymous workshop review:
+- tracked runtime artifacts removed (`logs/`, `saved_runs/`, `run_state/`, generated `release/` files),
+- hardcoded personal machine paths replaced with placeholders in configs and docs.
+
+Run anonymity audit before packaging:
+
+```bash
+bash scripts/check_double_blind.sh
+```
+
+Build a reviewer-facing source bundle:
+
+```bash
+bash scripts/build_double_blind_bundle.sh
+```
+
+Output:
+- `release/review_bundle.zip`
+
 ## Dataset / External Links
 
 - DINO-WM assets (dataset + checkpoints):  

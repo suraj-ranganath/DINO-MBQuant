@@ -83,7 +83,7 @@ Configs:
 1. Smoke:
 ```bash
 source .venv311/bin/activate
-export DATASET_DIR=/Users/anishpatnaik/Downloads
+export DATASET_DIR=/path/to/assets_root
 export DINO_WM_DEVICE=mps
 bash scripts/run_main2_expansion_smoke_m3.sh configs/experiment_config.mac_m3_main2_expansion_smoke.yaml m3_main2exp_smoke_v1
 ```

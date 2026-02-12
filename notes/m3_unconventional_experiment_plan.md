@@ -19,8 +19,8 @@ Goal: strengthen the claim that quantization outcome depends on both bitwidth (`
 2. `third_party_dino_wm` exists and imports successfully.
 3. Dataset exists at `$DATASET_DIR/wall_single`.
 4. Checkpoint exists at:
-   - `/Users/anishpatnaik/Downloads/outputs/wall_single/hydra.yaml`
-   - `/Users/anishpatnaik/Downloads/outputs/wall_single/checkpoints/model_latest.pth`
+   - `/path/to/assets_root/outputs/wall_single/hydra.yaml`
+   - `/path/to/assets_root/outputs/wall_single/checkpoints/model_latest.pth`
 
 Config used: `configs/experiment_config.mac_m3_unconventional.yaml`.
 
@@ -28,7 +28,7 @@ Config used: `configs/experiment_config.mac_m3_unconventional.yaml`.
 
 ```bash
 source .venv311/bin/activate
-export DATASET_DIR=/Users/anishpatnaik/Downloads
+export DATASET_DIR=/path/to/assets_root
 export DINO_WM_DEVICE=mps
 bash scripts/run_unconventional_pipeline_m3.sh configs/experiment_config.mac_m3_unconventional.yaml m3_unconventional_v1 2>&1 | tee logs_m3_unconventional_v1.txt
 ```

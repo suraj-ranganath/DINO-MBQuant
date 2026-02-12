@@ -3,7 +3,7 @@ project_root: .
 dino:
   repo_path: ./third_party_dino_wm
   plan_config_name: plan_wall.yaml
-  ckpt_base_path: /Users/anishpatnaik/Downloads
+  ckpt_base_path: /path/to/assets_root
   model_name: wall_single
   model_epoch: latest
 
