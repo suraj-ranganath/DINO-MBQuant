@@ -10,7 +10,7 @@ This branch (`review-ready`) is prepared for anonymous reviewer access.
   - `run_state/`
   - generated files under `release/`
   - generated paper PDFs (`paper/*.pdf`)
-- Replaced machine-specific paths (`/Users/...`) in tracked configs/docs with placeholders.
+- Replaced machine-specific absolute local paths in tracked configs/docs with placeholders.
 - Added automated anonymity checks and bundle generation scripts.
 
 ## Pre-submission commands
