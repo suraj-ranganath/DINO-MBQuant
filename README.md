@@ -18,7 +18,7 @@ This repo provides:
 
 ## Project Goal
 
-Investigate **where bits matter** in world-model planning under efficiency constraints:
+Investigate precision-allocation effects in world-model planning under efficiency constraints:
 - Is performance driven mostly by total bitwidth?
 - Or by how precision is allocated across encoder vs predictor?
 
