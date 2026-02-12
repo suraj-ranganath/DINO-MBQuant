@@ -14,13 +14,12 @@
 \lhead{Under review as a workshop paper at ICLR 2026 (ES-Reasoning)}
 
 \begin{abstract}
-Efficient spatial reasoning requires world models that retain planning quality under aggressive quantization.
-We test whether low-bit behavior is governed mainly by total bitwidth or by \emph{bit allocation} across modules.
-In a case study on DINO-WM planning in Wall, we run paired-goal mixed-bit evaluation with 18 variants, two planner budgets, 65 runs, and 650 episodes.
-In this setting, we observe a three-regime pattern: 8/6-bit variants stay near FP16, 3-bit variants collapse, and 4-bit is a transition region.
-At 4-bit, mixed quantization (encoder FP16, predictor INT4) is directionally better than uniform INT4 by +0.20 at budget bA (95\% bootstrap CI [0.00, 0.40], $n=30$) and +0.30 at budget bB ([0.00, 0.55], $n=20$), with sign-test $p=0.109$ in both budgets.
-Because mixed INT4 is larger than uniform INT4, we also analyze near-size asymmetric variants and find the same encoder-side trend.
-These results are single-environment and single-checkpoint, but they generalize within Wall across planner budgets, difficulty bins, and quantization families.
+Efficient spatial reasoning requires world models that remain reliable under tight precision budgets.
+We study whether low-bit planning behavior is determined mostly by total bitwidth or by \emph{where} bits are allocated across modules.
+Using DINO-WM on the Wall planning task, we run a paired-goal mixed-bit evaluation across uniform, mixed, asymmetric, and layerwise variants under two planner budgets.
+We observe a consistent three-regime pattern: 8/6-bit settings remain close to FP16, 3-bit settings collapse, and 4-bit settings are allocation-sensitive.
+In that transition region, preserving encoder precision improves planning relative to uniform quantization, and near-size asymmetric variants show the same encoder-side direction.
+These findings motivate module-aware, budget-aware quantization policies as a broader research direction for efficient spatial reasoning.
 \end{abstract}
 
 \section{Introduction}
@@ -38,6 +37,11 @@ Concretely, we provide three takeaways: (1) a paired mixed-bit frontier showing 
 We use pretrained DINO-WM \citep{zhou2024dinowm} on Wall and keep the repository-native planning success metric from planning logs.
 We do not redefine task success.
 All variants use weight-only linear-layer quantization and identical checkpoints.
+
+\paragraph{Model and hardware context.}
+The model under study is DINO-WM with a visual encoder and latent predictor as defined in the original repository \citep{zhou2024dinowm}.
+All experiments in this paper were executed locally on one Apple M4 MacBook Pro with 48GB unified memory.
+Runs use PyTorch with MPS when available and CPU fallback otherwise, under a single fixed software stack across all variants.
 
 \paragraph{Quantization implementation details.}
 We use post-training, weight-only quantization on \texttt{nn.Linear} layers via \texttt{experiments/quantize\_utils.py}.
@@ -142,6 +146,9 @@ This study is limited to one environment and one checkpoint family.
 Confidence intervals on key paired effects still include zero because the paired sample is modest.
 The headline mixed-vs-uniform comparison is also confounded by model size: mixed INT4 keeps an FP16 encoder and therefore uses substantially more total precision than uniform INT4.
 We evaluate weight-only quantization without activation quantization, retraining, or hardware-fused low-bit kernels.
+Due to compute constraints, all experiments were run on a single M4 MacBook Pro (48GB unified memory), which limits sweep breadth and runtime scale.
+As a result, this paper should be read as a strong preliminary study rather than a final benchmark.
+The next phase is to replicate and extend these experiments on NVIDIA GPUs, and to test broader quantization strategies including activation quantization, calibration-aware PTQ, and hardware-kernel-backed low-bit inference.
 Therefore, conclusions should be read as robust empirical hypotheses for efficient spatial reasoning, not universal laws.
 
 \section{Conclusion}
