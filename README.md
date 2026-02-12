@@ -1,154 +1,315 @@
-# EAI_DINO: ES-Reasoning Tiny Paper MVP
+# EAI_DINO: Mixed-Bit Quantization Experiments (Mac Collaborator Guide)
 
-This repository contains a fast, reproducible pipeline for:
-- running DINO-WM Wall planning experiments across FP16 / uniform INT8 / mixed INT8 variants,
-- aggregating metrics and producing paper-ready figures,
-- generating replay artifacts and a Mac-friendly Streamlit demo,
-- compiling an anonymized 4-page Tiny paper (ICLR 2026 workshop format).
+This README is the **single setup + runbook** for collaborators using a local Mac (Apple Silicon).
 
-## Quick Start
+It covers:
+- exact setup commands,
+- where to download data/checkpoints,
+- how to set `ckpt_base_path` correctly,
+- how to run experiments with logs,
+- how to resume without overwriting,
+- where outputs/figures/paper files are written.
 
-1. Install Python deps:
-   ```bash
-   # Use Python 3.10 or 3.11 for DINO-WM compatibility.
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-   Or use one-command Mac setup:
-   ```bash
-   bash scripts/setup_mac_env.sh python3.11 .venv311
-   source .venv311/bin/activate
-   ```
-   For Mac local experiment runs:
-   ```bash
-   pip install -r requirements-mac.txt
-   ```
-   For GPU quantization runs on Nautilus:
-   ```bash
-   pip install -r requirements-gpu.txt
-   ```
-2. Get dataset + pretrained checkpoint (source of truth):
-   - DINO-WM OSF bundle (dataset + checkpoints):  
-     `https://osf.io/bmw48/?view_only=a56a296ce3b24cceaf408383a175ce28`
-   - In this project, current local paths are:
-     - checkpoint: `/Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth`
-     - dataset (Wall): `/Users/suraj/Downloads/wall_single`
-   - Set environment/config:
-   ```bash
-   export DATASET_DIR=/Users/suraj/Downloads
-   # Then set dino.ckpt_base_path in config to:
-   # /Users/suraj/Downloads
-   ```
-3. Configure paths in `configs/experiment_config.yaml`.
-4. Build variants:
-   ```bash
-   python -m experiments.build_variants --config configs/experiment_config.yaml
-   ```
-5. Run FP16 baseline only (optional gate check):
-   ```bash
-   python -m experiments.run_baseline_wall --config configs/experiment_config.yaml
-   ```
-6. Run grid:
-   ```bash
-   python -m experiments.run_wall_grid --config configs/experiment_config.yaml
-   ```
-7. Aggregate + figures:
-   ```bash
-   python -m experiments.aggregate --config configs/experiment_config.yaml
-   python -m experiments.make_figures --config configs/experiment_config.yaml
-   ```
-8. Export demo artifacts + launch demo:
-   ```bash
-   python -m experiments.export_demo_artifacts --config configs/experiment_config.yaml
-   streamlit run demo/app.py
-   ```
-9. Prepare paper scaffold and compile:
-   ```bash
-   bash scripts/setup_paper.sh
-   bash scripts/compile_paper.sh
-   ```
+---
 
-## Mac-Only 6-7 Hour Path
+## 1) What This Repo Produces
 
-Use this when running only on a local MacBook (no CUDA):
+Main pipelines in this repo generate:
+- run-scoped experiment metrics (`results/.../<run_name>/...`),
+- run-scoped figures (`figures.../<run_name>/...`),
+- notes for paper writing (`notes/<run_name>/...`),
+- optional replay artifacts for demo (`demo/.../<run_name>/...`),
+- paper PDF (`paper/main.pdf` and copied `paper/paper.pdf`).
 
-1. Configure Mac preset:
-   - set `dino.ckpt_base_path` in `configs/experiment_config.mac.yaml`
-   - set `export DATASET_DIR=/ABS/PATH/TO/data`
-   - set `export DINO_WM_DEVICE=mps` (or `cpu` if MPS op support is problematic)
-2. Run preflight + pipeline:
-   ```bash
-   bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml my_run_name
-   ```
-   Each run is isolated under run-specific folders (for example, `results/.../my_run_name`, `figures/.../my_run_name`, `notes/my_run_name/...`), so new runs do not overwrite old results.
-3. Launch replay demo:
-   ```bash
-   streamlit run demo/app.py
-   ```
-4. Build release artifacts:
-   ```bash
-   bash scripts/build_release_bundle.sh
-   ```
-5. Use `notes/paper_numbers.md` to quickly fill result text in the tiny paper.
+The recommended research pipeline for current work is:
+- `scripts/run_mixedbit_story.sh` (mixed-bit main study + appendix analysis).
 
-## Transition-Study Pipeline (Paired + Budget + Mechanistic)
+---
 
-Use this for the stronger workshop narrative (paired evaluation, budget sensitivity, encoder-retention at INT4):
+## 2) Prerequisites (Mac)
+
+- macOS on Apple Silicon (M-series)
+- Python `3.10` or `3.11` (required; 3.12 is not supported by this project)
+- Git
+- Enough free disk space (recommend 15GB+ free)
+
+Check Python:
 
 ```bash
-bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml my_transition_run
+python3.11 --version
 ```
 
-If a run is interrupted, resume safely without overwriting completed stage outputs:
-```bash
-bash scripts/resume_transition_run.sh configs/experiment_config.mac_transition_study.yaml my_transition_run resume_try1
-```
-This writes resumed stage outputs into:
-- `results/wall_transition/my_transition_run/resume/resume_try1/budget_bB/...`
-- `results/wall_transition/my_transition_run/resume/resume_try1/layerwise_int4/...`
+If unavailable, install Python 3.11 first.
 
-Key outputs:
-- `results/my_transition_run/summary.csv`
-- `results/my_transition_run/summary_grouped.csv`
-- `results/my_transition_run/episode_outcomes.csv`
-- `results/my_transition_run/paired_delta_bA_mixed_vs_uniform_int4.json`
-- `results/my_transition_run/mechanistic_correlations.json`
-- `figures_transition/my_transition_run/transition_frontier.pdf`
-- `figures_transition/my_transition_run/budget_sensitivity.pdf`
-- `figures_transition/my_transition_run/encoder_retention_curve.pdf`
+---
 
-## Mixed-Bit Story Pipeline (No CoreML, Paper-Focused)
+## 3) Clone + Environment Setup
 
-Use this for the stronger mixed-bit framing (uniform vs mixed at 8/6/4/3 bits, asymmetric encoder/predictor allocations, budget robustness, and layerwise encoder retention):
+From scratch:
 
 ```bash
-bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml my_mixedbit_run
+git clone <your-fork-or-repo-url>
+cd EAI_DINO
+bash scripts/setup_mac_env.sh python3.11 .venv311
+source .venv311/bin/activate
 ```
 
-Resume safely without overwriting completed stages by passing a resume tag:
+This installs `requirements-mac.txt` and prepares a compatible venv.
+
+---
+
+## 4) Download Dataset + Checkpoint (Required)
+
+Primary source:
+- DINO-WM assets (dataset + checkpoints):  
+  `https://osf.io/bmw48/?view_only=a56a296ce3b24cceaf408383a175ce28`
+
+Workshop/reference links:
+- Workshop home: `https://sites.google.com/ucsd.edu/efficient-spatial-reasoning/home?authuser=0`
+- CFP: `https://sites.google.com/ucsd.edu/efficient-spatial-reasoning/call-for-papers`
+- OpenReview: `https://openreview.net/group?id=ICLR.cc%2F2026%2FWorkshop%2FES-Reasoning`
+- DINO-WM repo: `https://github.com/gaoyuezhou/dino_wm`
+- DINO-WM paper: `https://arxiv.org/abs/2411.04983`
+
+### Expected Local Layout
+
+After download/unzip, your local structure should match:
+
+```text
+/Users/<you>/Downloads/
+  wall_single/                               # dataset folder
+  outputs/
+    wall_single/
+      hydra.yaml
+      checkpoints/
+        model_latest.pth
+```
+
+Given the path you shared earlier, this is correct:
+- checkpoint: `/Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth`
+- data folder: `/Users/suraj/Downloads/wall_single`
+
+---
+
+## 5) Configure Paths Correctly
+
+Use one of the Mac configs (recommended for mixed-bit story):
+- `configs/experiment_config.mac_mixedbit_story.yaml`
+
+Ensure these fields are set:
+
+```yaml
+dino:
+  ckpt_base_path: /Users/suraj/Downloads
+  model_name: wall_single
+  model_epoch: latest
+```
+
+Critical notes:
+- `ckpt_base_path` is **not** the checkpoint file path.
+- It must be the parent that contains `outputs/<model_name>/...`.
+- With current assets, that parent is `/Users/suraj/Downloads`.
+
+Set dataset + device env vars in shell:
+
 ```bash
-bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml my_mixedbit_run resume_try1
+export DATASET_DIR=/Users/suraj/Downloads
+export DINO_WM_DEVICE=mps
 ```
 
-This writes new stage outputs under:
-- `results/wall_mixedbit_story/my_mixedbit_run/stage/...` (initial run)
-- `results/wall_mixedbit_story/my_mixedbit_run/resume/resume_try1/...` (resumed stages)
+If MPS op issues occur, switch to CPU:
 
-Key outputs:
-- `results/my_mixedbit_run/summary.csv`
-- `results/my_mixedbit_run/summary_grouped.csv`
-- `results/my_mixedbit_run/mixedbit_pairwise_stats.csv`
-- `results/my_mixedbit_run/mixedbit_pairwise_stats.json`
-- `notes/my_mixedbit_run/mixedbit_story_notes.md`
-- `figures_mixedbit_story/my_mixedbit_run/appendix_bit_ladder.pdf`
-- `figures_mixedbit_story/my_mixedbit_run/appendix_asymmetric_allocation_map.pdf`
-- `figures_mixedbit_story/my_mixedbit_run/appendix_pairwise_deltas.pdf`
+```bash
+export DINO_WM_DEVICE=cpu
+```
 
-Note: ES-Reasoning Tiny paper formatting can be targeted to 5 pages including references, with unlimited appendix for additional ablations.
+---
 
-## Notes
-- Use GPU (A6000/A100) for experiment runs.
-- Use Mac for replay demo and paper finalization.
-- Nautilus bootstrap helper: `bash scripts/setup_nautilus.sh <work_dir> <ckpt_base_path> <dataset_dir>`.
-- Mac runbook: `scripts/mac_6h_runbook.md`.
+## 6) Preflight Check (Do This First)
+
+```bash
+bash scripts/mac_preflight.sh configs/experiment_config.mac_mixedbit_story.yaml
+```
+
+It validates:
+- Python version,
+- package imports,
+- `DATASET_DIR/wall_single` exists,
+- checkpoint files exist from config,
+- free disk warning threshold.
+
+If preflight fails, fix that before running experiments.
+
+---
+
+## 7) Recommended Main Run (Mixed-Bit Story)
+
+Run with explicit run name + log capture:
+
+```bash
+RUN_NAME=mixedbit_$(date +%Y%m%d_%H%M%S)
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml "$RUN_NAME" 2>&1 | tee "logs/${RUN_NAME}.log"
+```
+
+What this pipeline runs:
+- paired target generation,
+- main mixed-bit frontier (Budget A),
+- budget robustness subset (Budget B),
+- encoder-retention curve,
+- aggregations/statistics,
+- transition + appendix figures.
+
+---
+
+## 8) Resume an Interrupted Run (No Overwrite)
+
+If interrupted, resume safely by adding a resume tag:
+
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml <existing_run_name> resume_try1 2>&1 | tee "logs/<existing_run_name>_resume_try1.log"
+```
+
+Resume writes new stage outputs under:
+- `results/wall_mixedbit_story/<run>/resume/resume_try1/...`
+
+It does **not** erase completed stage outputs.
+
+---
+
+## 9) Other Useful Pipelines
+
+### A) Standard Mac baseline/grid pipeline
+
+```bash
+bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml my_mac_run 2>&1 | tee logs/my_mac_run.log
+```
+
+### B) Transition study pipeline
+
+```bash
+bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml transition_run_01 2>&1 | tee logs/transition_run_01.log
+```
+
+Resume transition run:
+
+```bash
+bash scripts/resume_transition_run.sh configs/experiment_config.mac_transition_study.yaml transition_run_01 resume_try1 2>&1 | tee logs/transition_run_01_resume.log
+```
+
+---
+
+## 10) Where Outputs Go
+
+For run name `<run_name>` in mixed-bit story:
+
+- Metrics/root outputs:
+  - `results/wall_mixedbit_story/<run_name>/...`
+  - `results/<run_name>/summary.csv`
+  - `results/<run_name>/summary_grouped.csv`
+  - `results/<run_name>/mixedbit_pairwise_stats.csv`
+- Notes:
+  - `notes/<run_name>/mixedbit_story_notes.md`
+- Figures:
+  - `figures_mixedbit_story/<run_name>/transition_frontier.pdf`
+  - `figures_mixedbit_story/<run_name>/budget_sensitivity.pdf`
+  - `figures_mixedbit_story/<run_name>/encoder_retention_curve.pdf`
+  - `figures_mixedbit_story/<run_name>/appendix_*.pdf`
+
+General no-overwrite behavior:
+- use a **new run name** for a fresh run,
+- use resume mode for continuation into run-specific resume subfolders.
+
+---
+
+## 11) Paper Build
+
+Compile paper:
+
+```bash
+bash scripts/compile_paper.sh
+```
+
+Outputs:
+- `paper/main.pdf`
+- `paper/paper.pdf` (copy of `main.pdf`)
+
+Submission recommendation:
+- use `paper/paper.pdf` (or `release/paper.pdf` after bundling).
+
+Create release bundle:
+
+```bash
+bash scripts/build_release_bundle.sh
+```
+
+Outputs:
+- `release/paper.pdf`
+- `release/supplemental.zip`
+
+---
+
+## 12) Demo (Optional)
+
+If demo artifacts exist:
+
+```bash
+streamlit run demo/app.py
+```
+
+---
+
+## 13) Common Errors + Fixes
+
+### `Config not found: configs/`
+You passed a directory instead of a YAML file. Use a concrete config path, e.g.:
+
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml my_run
+```
+
+### `ckpt_base_path is still placeholder`
+Edit config and set:
+
+```yaml
+ckpt_base_path: /Users/suraj/Downloads
+```
+
+### Missing checkpoint file for model epoch
+If config has `model_epoch: latest`, ensure:
+- `/Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth`
+
+### Gym warning about maintenance / NumPy 2.0
+This warning is expected in this stack and does not by itself mean failure. Continue if runs proceed normally.
+
+### MPS errors
+Fallback to CPU:
+
+```bash
+export DINO_WM_DEVICE=cpu
+```
+
+### Existing run folder errors
+Use a new run name for fresh runs, or resume mode for continuation.
+
+---
+
+## 14) Minimal Collaborator Quickstart (Copy/Paste)
+
+```bash
+cd /path/to/EAI_DINO
+bash scripts/setup_mac_env.sh python3.11 .venv311
+source .venv311/bin/activate
+export DATASET_DIR=/Users/suraj/Downloads
+export DINO_WM_DEVICE=mps
+
+# verify config has:
+# dino.ckpt_base_path: /Users/suraj/Downloads
+# dino.model_name: wall_single
+# dino.model_epoch: latest
+
+bash scripts/mac_preflight.sh configs/experiment_config.mac_mixedbit_story.yaml
+RUN_NAME=mixedbit_$(date +%Y%m%d_%H%M%S)
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml "$RUN_NAME" 2>&1 | tee "logs/${RUN_NAME}.log"
+```
+
+This is the fastest path from zero setup to paper-ready run outputs.
