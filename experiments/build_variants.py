@@ -39,6 +39,22 @@ def main() -> None:
             "Choose a new --run-name, or pass --allow-existing to continue."
         )
     sanity = cfg["sanity"]
+    eval_cfg = cfg.get("evaluation", {})
+
+    # Sanity runs should not depend on paired target manifests. If a config uses
+    # goal_source=file without a concrete static goal_file_path, force random_state.
+    goal_source_override = None
+    goal_file_path_override = None
+    goal_h_override = None
+    planner_max_iter_override = None
+    configured_goal_source = str(eval_cfg.get("goal_source", "random_state"))
+    configured_goal_file_path = eval_cfg.get("goal_file_path")
+    configured_goal_template = eval_cfg.get("goal_file_path_template")
+    if configured_goal_source == "file" and not configured_goal_file_path and configured_goal_template:
+        goal_source_override = "random_state"
+        goal_h_override = int(eval_cfg.get("goal_H", 5))
+    if eval_cfg.get("planner_max_iter") is not None:
+        planner_max_iter_override = int(eval_cfg["planner_max_iter"])
 
     for variant_name in cfg["variants"].keys():
         variant_root = variants_root / variant_name
@@ -52,6 +68,11 @@ def main() -> None:
             seed=int(sanity["seed"]),
             opt_steps=int(sanity["opt_steps"]),
             n_evals=int(sanity["n_evals"]),
+            goal_source_override=goal_source_override,
+            goal_file_path_override=goal_file_path_override,
+            goal_H_override=goal_h_override,
+            planner_max_iter_override=planner_max_iter_override,
+            budget_id="sanity",
         )
 
         variant_spec = {

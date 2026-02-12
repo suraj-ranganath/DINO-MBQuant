@@ -90,11 +90,21 @@ def main() -> None:
         default=None,
         help="Optional comma-separated seed override applied to selected budgets.",
     )
+    parser.add_argument(
+        "--stage-subdir",
+        default=None,
+        help=(
+            "Optional stage folder under the run root for isolation/resume "
+            "(e.g., frontier_bA or resume/try1/budget_bB)."
+        ),
+    )
     args = parser.parse_args()
 
     cfg = load_cfg(args.config)
     eval_cfg = cfg["evaluation"]
     wall_root = resolve_path(cfg, key="wall_root", run_name=args.run_name)
+    if args.stage_subdir:
+        wall_root = wall_root / args.stage_subdir
     if args.run_name and wall_root.exists() and not args.allow_existing:
         raise SystemExit(
             f"Run folder already exists: {wall_root}\n"
