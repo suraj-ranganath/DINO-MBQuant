@@ -110,11 +110,6 @@ Baseline/grid:
 bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml <run_name>
 ```
 
-## Paper + Release
-
-This `review-ready` branch intentionally excludes tracked `paper/` sources and internal notes for double-blind review.
-Keep submission PDF preparation on your private/main working branch.
-
 ## Double-Blind Review Workflow
 
 This branch is prepared for anonymous workshop review:
