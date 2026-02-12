@@ -27,3 +27,4 @@ paper/*.out
 paper/*.pdfsync
 paper/*.synctex.gz
 paper/iclr2026.zip
+saved_runs/

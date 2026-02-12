@@ -1,0 +1,12 @@
+{
+  "run_name": "transition_run_v2",
+  "budget_id": "bA",
+  "variant_a": "mixed_int4",
+  "variant_b": "uniform_int4",
+  "paired_units": 30,
+  "delta_mean": 0.2,
+  "delta_ci95_lo": 0.0,
+  "delta_ci95_hi": 0.4,
+  "variant_a_success": 0.26666666666666666,
+  "variant_b_success": 0.06666666666666667
+}

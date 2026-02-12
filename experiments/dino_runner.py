@@ -4,12 +4,14 @@ import argparse
 import importlib
 import json
 import os
+import pickle
 import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 import torch
 import yaml
 from omegaconf import OmegaConf
@@ -106,6 +108,68 @@ def _parse_dtype(name: Optional[str]) -> Optional[torch.dtype]:
     if norm in {"float32", "fp32"}:
         return torch.float32
     raise ValueError(f"Unsupported dtype string: {name}")
+
+
+def _batch_len(value: Any) -> Optional[int]:
+    if isinstance(value, torch.Tensor):
+        return int(value.shape[0])
+    if isinstance(value, np.ndarray):
+        return int(value.shape[0])
+    if isinstance(value, (list, tuple)):
+        return len(value)
+    return None
+
+
+def _slice_batch(value: Any, n: int) -> Any:
+    if isinstance(value, torch.Tensor):
+        return value[:n]
+    if isinstance(value, np.ndarray):
+        return value[:n]
+    if isinstance(value, list):
+        return value[:n]
+    if isinstance(value, tuple):
+        return value[:n]
+    return value
+
+
+def _align_goal_file_to_n_evals(goal_file_path: str, n_evals: int, run_path: Path) -> str:
+    path = Path(goal_file_path).resolve()
+    with path.open("rb") as f:
+        data = pickle.load(f)
+
+    if not isinstance(data, dict):
+        return str(path)
+
+    current_n = _batch_len(data.get("state_0"))
+    if current_n is None:
+        obs_0 = data.get("obs_0")
+        if isinstance(obs_0, dict) and obs_0:
+            first_val = next(iter(obs_0.values()))
+            current_n = _batch_len(first_val)
+    if current_n is None:
+        return str(path)
+
+    if int(current_n) == int(n_evals):
+        return str(path)
+    if int(current_n) < int(n_evals):
+        raise RuntimeError(
+            f"Paired goal file has too few episodes for n_evals={n_evals}: {path} (contains {current_n})."
+        )
+
+    aligned = dict(data)
+    if isinstance(aligned.get("obs_0"), dict):
+        aligned["obs_0"] = {k: _slice_batch(v, n_evals) for k, v in aligned["obs_0"].items()}
+    if isinstance(aligned.get("obs_g"), dict):
+        aligned["obs_g"] = {k: _slice_batch(v, n_evals) for k, v in aligned["obs_g"].items()}
+    aligned["state_0"] = _slice_batch(aligned.get("state_0"), n_evals)
+    aligned["state_g"] = _slice_batch(aligned.get("state_g"), n_evals)
+    if aligned.get("gt_actions") is not None:
+        aligned["gt_actions"] = _slice_batch(aligned.get("gt_actions"), n_evals)
+
+    out_path = run_path / f"plan_targets_aligned_n{int(n_evals)}.pkl"
+    with out_path.open("wb") as f:
+        pickle.dump(aligned, f)
+    return str(out_path.resolve())
 
 
 def run_variant_once(
@@ -233,6 +297,15 @@ def run_variant_once(
     cfg_dict = _merge_plan_cfg(plan_cfg_path, overrides)
     cfg_dict["saved_folder"] = str(run_path)
     cfg_dict["wandb_logging"] = False
+    if str(overrides.get("goal_source", eval_cfg.get("goal_source", "random_state"))) == "file":
+        goal_path = overrides.get("goal_file_path")
+        if goal_path:
+            cfg_dict["goal_file_path"] = _align_goal_file_to_n_evals(
+                goal_file_path=str(goal_path),
+                n_evals=int(n_evals),
+                run_path=run_path,
+            )
+            overrides["goal_file_path"] = cfg_dict["goal_file_path"]
 
     metrics: Dict[str, Any] = {}
     trace: Dict[str, Any] = {}

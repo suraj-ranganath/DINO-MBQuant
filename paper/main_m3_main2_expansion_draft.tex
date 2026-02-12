@@ -1,0 +1,90 @@
+\documentclass{article}
+\usepackage{iclr2026_conference,times}
+\input{math_commands.tex}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+
+\title{Beyond Preliminary INT4 Results: A Deeper Study of Module-Aware Quantization for DINO-WM Planning}
+\author{}
+
+\begin{document}
+\maketitle
+\lhead{Under review as a workshop paper at ICLR 2026 (ES-Reasoning)}
+
+\begin{abstract}
+We revisit the preliminary finding that mixed INT4 quantization (encoder FP16, predictor INT4) outperforms uniform INT4 for DINO-WM planning on Wall.
+Our goal is to test whether this effect is robust, statistically stable, and mechanistically tied to where precision is allocated.
+We expand the original setup along six research questions: multi-budget robustness of mixed-vs-uniform INT4, closeness of mixed INT4 to INT8/FP16, position-sensitive encoder retention, asymmetric encoder/predictor bit allocation, random-goal robustness, and episode-level paired matchup dominance.
+This draft is synchronized with the M3 experiment pipeline and is intended for final number insertion after run completion.
+\end{abstract}
+
+\section{Introduction}
+Low-bit quantization in world models is often framed as a one-dimensional question of bitwidth.
+Our prior result suggests a stronger hypothesis: near the 4-bit transition regime, \emph{where} bits are preserved can matter more than average bitwidth alone.
+This paper deepens that hypothesis beyond preliminary evidence by running targeted robustness and allocation-structure experiments.
+
+\section{Research Questions}
+\begin{itemize}
+  \item \textbf{RQ1}: Is mixed INT4 consistently better than uniform INT4 across planning budgets and seeds?
+  \item \textbf{RQ2}: How close is mixed INT4 to INT8 and FP16 performance under matched planning budgets?
+  \item \textbf{RQ3}: Inside the encoder, does preserving tail blocks vs head blocks in FP16 change INT4 outcomes?
+  \item \textbf{RQ4}: At similar average precision, does allocation direction (encoder-heavy vs predictor-heavy) alter success?
+  \item \textbf{RQ5}: Does the mixed INT4 gain persist when goal source changes from paired files to random-state goals?
+  \item \textbf{RQ6}: At the episode level, does mixed INT4 win on the same paired episodes or only in aggregate means?
+\end{itemize}
+
+\section{Experimental Protocol}
+We evaluate DINO-WM on Wall using paired-goal and random-goal budgets, with M3 Apple Silicon (MPS backend).
+The expanded variant families include:
+\begin{itemize}
+  \item baseline/frontier: FP16, uniform/mixed INT8, uniform/mixed INT6, uniform/mixed INT4;
+  \item encoder position studies: tail-preserved FP16 (encfp16\_25/50/75) vs head-preserved FP16 (encheadfp16\_25/50);
+  \item asymmetric mixed families: E8/P4 vs E4/P8 and E6/P4 vs E4/P6.
+\end{itemize}
+Primary statistics are paired episode deltas with bootstrap confidence intervals, augmented by episode-level contingency counts.
+
+\section{Results}
+\subsection{RQ1: Mixed INT4 vs Uniform INT4}
+Insert paired deltas for budgets bA/bB/bC:
+\begin{itemize}
+  \item \texttt{paired\_delta\_bA\_mixed\_vs\_uniform\_int4.json}
+  \item \texttt{paired\_delta\_bB\_mixed\_vs\_uniform\_int4.json}
+  \item \texttt{paired\_delta\_bC\_mixed\_vs\_uniform\_int4.json}
+\end{itemize}
+
+\subsection{RQ2: Closeness to INT8/FP16}
+Report absolute success gaps of mixed INT4 vs mixed INT8, uniform INT8, and FP16 from grouped summaries.
+
+\subsection{RQ3-RQ4: Allocation Structure}
+Report tail-vs-head paired deltas and cross-allocation deltas (E8/P4 vs E4/P8, E6/P4 vs E4/P6).
+
+\subsection{RQ5: Goal Source Robustness}
+Insert random-goal deltas:
+\begin{itemize}
+  \item \texttt{paired\_delta\_bA\_rand\_mixed\_vs\_uniform\_int4.json}
+  \item \texttt{paired\_delta\_bB\_rand\_mixed\_vs\_uniform\_int4.json}
+\end{itemize}
+
+\subsection{RQ6: Episode-Level Matchups}
+Insert contingency results:
+\begin{itemize}
+  \item \texttt{episode\_matchup\_int4\_mixed\_vs\_uniform.json}
+  \item \texttt{episode\_matchup\_tail50\_vs\_head50.json}
+\end{itemize}
+
+\section{Discussion}
+Focus on whether evidence supports the central claim:
+module-aware precision allocation at 4-bit yields stronger planning reliability than uniform 4-bit quantization, and whether this advantage narrows or remains close to INT8/FP16 in key budgets.
+
+\section{Limitations}
+Single environment (Wall), one pretrained checkpoint, Apple M3 hardware, and weight-only quantization path.
+
+\section{Conclusion}
+State only claims directly supported by paired deltas and episode-level dominance outcomes.
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\end{document}

@@ -28,8 +28,9 @@ if missing:
 PY
 
 if [[ -z "${DATASET_DIR:-}" ]]; then
-  echo "[error] DATASET_DIR is not set. Example: export DATASET_DIR=/ABS/PATH/TO/data"
-  exit 1
+  DATASET_DIR="$ROOT_DIR/dino/data"
+  export DATASET_DIR
+  echo "[info] DATASET_DIR not set; defaulting to $DATASET_DIR"
 fi
 
 if [[ ! -d "$DATASET_DIR/wall_single" ]]; then
@@ -43,17 +44,15 @@ cfg = yaml.safe_load(open(sys.argv[1]))
 print(cfg['dino']['ckpt_base_path'])
 PY
 )"
+if [[ "$CKPT_BASE_PATH" != /* ]]; then
+  CKPT_BASE_PATH="$ROOT_DIR/$CKPT_BASE_PATH"
+fi
 MODEL_NAME="$(python - <<'PY' "$CONFIG_PATH"
 import sys, yaml
 cfg = yaml.safe_load(open(sys.argv[1]))
 print(cfg['dino'].get('model_name', 'wall'))
 PY
 )"
-
-if [[ "$CKPT_BASE_PATH" == "/ABS/PATH/TO/checkpoints" ]]; then
-  echo "[error] ckpt_base_path is still placeholder in $CONFIG_PATH"
-  exit 1
-fi
 
 if [[ ! -f "$CKPT_BASE_PATH/outputs/$MODEL_NAME/hydra.yaml" ]]; then
   echo "[error] Missing checkpoint hydra config: $CKPT_BASE_PATH/outputs/$MODEL_NAME/hydra.yaml"

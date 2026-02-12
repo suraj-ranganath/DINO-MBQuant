@@ -4,7 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR/paper"
 
-latexmk -pdf -interaction=nonstopmode main.tex
-cp -f main.pdf paper.pdf
+# Build directly to a single canonical artifact: paper.pdf
+latexmk -pdf -interaction=nonstopmode -jobname=paper main.tex
 
-echo "Compiled paper/main.pdf and paper/paper.pdf"
+# Remove legacy duplicate if present.
+rm -f main.pdf
+
+echo "Compiled paper/paper.pdf"

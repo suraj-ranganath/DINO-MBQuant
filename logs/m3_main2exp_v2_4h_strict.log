@@ -1,0 +1,3 @@
+[info] Config: configs/experiment_config.mac_m3_main2_4h_strict.yaml
+[info] Run name: m3_main2exp_v2 (strict 4h mode, reusing prior results)
+[error] Python 3.13.9 detected. Use Python 3.10 or 3.11 for DINO-WM compatibility.

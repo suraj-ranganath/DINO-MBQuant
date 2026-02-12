@@ -12,6 +12,8 @@ echo "[info] Run name: $RUN_NAME"
 
 bash scripts/gpu_preflight.sh "$CONFIG_PATH"
 export DINO_WM_DEVICE="${DINO_WM_DEVICE:-cuda}"
+export DATASET_DIR="${DATASET_DIR:-$ROOT_DIR/dino/data}"
+echo "[info] DATASET_DIR=$DATASET_DIR"
 echo "[info] DINO_WM_DEVICE=$DINO_WM_DEVICE"
 
 echo "[stage] Generate paired targets"
