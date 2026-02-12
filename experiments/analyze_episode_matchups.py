@@ -14,9 +14,26 @@ def _parse_budget_ids(text: str) -> list[str]:
     return [x.strip() for x in str(text).split(",") if x.strip()]
 
 
-def _compute_counts(df: pd.DataFrame, variant_a: str, variant_b: str) -> Dict[str, int]:
-    a = df[df["variant"] == variant_a][["pair_id", "success"]].rename(columns={"success": "a"})
-    b = df[df["variant"] == variant_b][["pair_id", "success"]].rename(columns={"success": "b"})
+def _dedupe_variant_rows(df: pd.DataFrame, variant: str, value_col: str) -> pd.DataFrame:
+    sub = df[df["variant"] == variant].copy()
+    if sub.empty:
+        return sub[["pair_id", value_col]]
+
+    # Resumed/staged runs may contain repeated rows for the same pair_id.
+    # Keep one row per pair_id to avoid many-to-many merge inflation.
+    if "timestamp_utc" in sub.columns:
+        sub = sub.sort_values(["pair_id", "timestamp_utc"]).drop_duplicates(
+            subset=["pair_id"], keep="last"
+        )
+    else:
+        sub = sub.drop_duplicates(subset=["pair_id"], keep="last")
+
+    return sub[["pair_id", "success"]].rename(columns={"success": value_col})
+
+
+def _compute_counts(df: pd.DataFrame, variant_a: str, variant_b: str) -> Dict[str, float | int]:
+    a = _dedupe_variant_rows(df, variant_a, "a")
+    b = _dedupe_variant_rows(df, variant_b, "b")
     m = a.merge(b, on="pair_id", how="inner")
 
     a_win = int(((m["a"] == 1) & (m["b"] == 0)).sum())
