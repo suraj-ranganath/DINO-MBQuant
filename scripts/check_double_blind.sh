@@ -10,6 +10,7 @@ PATTERN='suraj|anishpatnaik|ranganath|DINO-MBQuant|/Users/[A-Za-z0-9._-]+'
 echo "[check] scanning tracked files for deanonymizing strings..."
 MATCHED=0
 while IFS= read -r f; do
+  [[ -f "$f" ]] || continue
   if rg -n -e "$PATTERN" "$f"; then
     MATCHED=1
   fi

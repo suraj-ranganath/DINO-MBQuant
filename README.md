@@ -2,6 +2,14 @@
 
 Mixed-bit quantization experiments for efficient world-model planning, centered on DINO-WM and the ES-Reasoning workshop workflow.
 
+## Abstract
+
+Efficient spatial reasoning requires world models that remain reliable under tight precision budgets.
+This project studies whether low-bit planning behavior is driven mostly by total bitwidth or by where bits are allocated across modules.
+Using DINO-WM on the Wall planning task, we run paired-goal mixed-bit evaluation across uniform, mixed, asymmetric, and layerwise variants under multiple planner budgets.
+Across runs, we observe a recurring regime structure: 8/6-bit settings stay close to FP16, 3-bit settings collapse, and 4-bit settings are allocation-sensitive.
+In the transition region, preserving encoder precision improves planning relative to uniform quantization, motivating module-aware quantization as a broader research direction for efficient spatial reasoning.
+
 This repo provides:
 - experiment runners for uniform, mixed, asymmetric, and layerwise quantization variants,
 - reproducible run orchestration scripts (fresh run + resume),
