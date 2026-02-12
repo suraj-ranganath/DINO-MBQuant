@@ -1,4 +1,4 @@
-# EAI_DINO
+# Where Bits Matter in World-Model Planning: A Paired Mixed-Bit Study for Efficient Spatial Reasoning
 
 Mixed-bit quantization experiments for efficient world-model planning, centered on DINO-WM and the ES-Reasoning workshop workflow.
 
