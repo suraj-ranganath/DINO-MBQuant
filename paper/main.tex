@@ -6,7 +6,7 @@
 \usepackage{hyperref}
 \usepackage{url}
 
-\title{Where Do Bits Matter in World Models?\\Evidence for a 4-bit Transition in DINO-WM Planning}
+\title{Where Bits Matter in World-Model Planning:\\A Paired Mixed-Bit Study of DINO-WM}
 \author{}
 
 \begin{document}
@@ -14,246 +14,208 @@
 \lhead{Under review as a workshop paper at ICLR 2026 (ES-Reasoning)}
 
 \begin{abstract}
-Efficient spatial reasoning systems need world models that remain reliable under strict compression budgets.
-We study weight-only quantization in DINO-WM planning on Wall and ask whether performance is controlled only by bitwidth, or also by \emph{where} precision is preserved.
-We combine a pilot ten-variant sweep with a larger paired-goal transition study that evaluates two planner budgets, 39 total runs, and 390 paired episodes.
-Across both runs, we observe a consistent three-regime pattern: 8-bit variants match FP16, 3-bit variants collapse, and 4-bit is a transition regime where allocation matters.
-Under paired evaluation, mixed INT4 (encoder FP16, predictor INT4) outperforms uniform INT4 by +0.20 success at budget bA (95\% bootstrap CI [0.00, 0.40], $n=30$ paired episodes) and by +0.30 at budget bB (CI [0.00, 0.55], $n=20$).
-Mechanistic diagnostics show strong negative rank correlation between embedding divergence and planning success, suggesting that representation degradation is a plausible failure pathway near the low-bit frontier.
-These results motivate module-aware precision allocation as a concrete direction for efficient world-model planning.
+Efficient spatial reasoning requires world models that retain planning quality under aggressive quantization.
+We test whether low-bit behavior is governed mainly by total bitwidth or by \emph{bit allocation} across modules.
+On DINO-WM planning in Wall, we run paired-goal mixed-bit evaluation with 18 variants, two planner budgets, 65 runs, and 650 episodes.
+The results show a consistent three-regime structure: 8/6-bit variants remain near FP16, 3-bit variants collapse, and 4-bit is a transition regime where allocation matters.
+At 4-bit, mixed quantization (encoder FP16, predictor INT4) improves success over uniform INT4 by +0.20 at budget bA (95\% bootstrap CI [0.00, 0.40], $n=30$) and +0.30 at budget bB ([0.00, 0.55], $n=20$).
+Asymmetric and layerwise ablations support the same direction: preserving encoder precision is more beneficial than adding predictor precision near the low-bit frontier.
 \end{abstract}
 
 \section{Introduction}
-World-model planning has become a central approach for efficient decision making in visuomotor control, with strong results from latent-dynamics models and pretrained visual features \citep{hafner2023dreamerv3,zhou2024dinowm,oquab2023dinov2}.
-At deployment time, however, these systems are increasingly constrained by memory and latency budgets.
-Low-bit post-training quantization is therefore attractive, but broad evidence shows that robustness often degrades sharply in ultra-low-bit regimes \citep{liu2025lowbitmodelquantizationdeep}.
-Recent world-model-specific evidence also suggests that quantization sensitivity can be module dependent rather than uniform \citep{fu2026quantwm}.
+World-model planning has become a strong paradigm for sample-efficient control and spatial reasoning, especially when latent dynamics are built on pretrained visual features \citep{hafner2023dreamerv3,oquab2023dinov2,zhou2024dinowm}.
+Deployment constraints, however, force these models into tight memory and latency budgets where aggressive quantization can destabilize behavior.
+Recent broad surveys and world-model-specific studies report that low-bit degradation is often non-uniform across modules \citep{liu2025lowbitmodelquantizationdeep,fu2026quantwm}.
 
-This paper targets a precise workshop question: in planning with world models, is performance determined mainly by total bitwidth, or by bit allocation across representation and dynamics modules?
-We study this question in DINO-WM by comparing uniform quantization (encoder and predictor quantized together) against encoder-preserving mixed quantization (encoder kept FP16, predictor quantized).
-Our evidence focuses on the Wall environment as an intentionally narrow but controlled setting.
+This paper asks a concrete workshop question: near low-bit operating points, is planning quality determined mainly by average precision, or by \emph{bit allocation} across encoder and predictor?
+We study this in DINO-WM on Wall with paired-goal evaluation and mixed-bit variants.
+Our contribution is empirical but decision-relevant: we identify where low-bit compression remains safe, where it fails, and which allocation choices are most promising.
+Concretely, we provide three takeaways: (1) a paired mixed-bit frontier showing a repeatable 8/6-safe, 4-transition, 3-collapse pattern; (2) robustness checks across two planner budgets with consistent mixed-vs-uniform INT4 ordering; and (3) encoder-focused evidence from asymmetric and layerwise ablations that sharpens future hypotheses.
 
-\section{Experimental Protocol}
-\paragraph{Model, task, and metric.}
-We evaluate pretrained DINO-WM \citep{zhou2024dinowm} on Wall and use the repository-native planning success signal from output logs, without redefining task metrics.
-All quantization is weight-only on linear layers.
-We report success rate, average planning time, model size, and mechanistic diagnostics extracted from planning logs.
+\section{Setup}
+\paragraph{Task and metric.}
+We use pretrained DINO-WM \citep{zhou2024dinowm} on Wall and keep the repository-native planning success metric from planning logs.
+We do not redefine task success.
+All variants use weight-only linear-layer quantization and identical checkpoints.
 
-\paragraph{Two-run design.}
-The first run is a pilot sweep over ten variants (FP16, uniform INT8/4/3, mixed INT8/4/3, and mixed E8/P4, E8/P3, E4/P3) with 120 episodes total.
-This run establishes an initial low-bit phase pattern.
-The second run is the primary transition study, designed to reduce variance and test robustness of claims: goals are generated once and reused across variants (paired evaluation), and two planner budgets are evaluated.
-Budget bA uses goal\_H=9, opt\_steps=2, max\_iter=2 with 3 seeds and 10 episodes per seed.
-Budget bB uses goal\_H=12, opt\_steps=3, max\_iter=3 with 2 seeds and 10 episodes per seed.
-The transition study also includes layerwise encoder-retention variants at INT4 (0\%, 25\%, 50\%, 75\%, 100\% encoder kept FP16).
+\paragraph{Variants.}
+We evaluate FP16, uniform INT$\{8,6,4,3\}$, mixed INT$\{8,6,4,3\}$ (encoder FP16, predictor quantized), asymmetric variants (E8/P4, E6/P4, E4/P8, E4/P6), and an INT4 layerwise encoder-retention sweep (0\%, 25\%, 50\%, 75\%, 100\% encoder kept FP16; predictor fixed INT4).
 
-\paragraph{Compute and implementation.}
-Experiments are run in PyTorch with reproducible scripts, consistent JSON schema, and fixed run folders.
-The reported experiments here were executed on local Apple Silicon with MPS; hardware is reported for transparency, but claims are framed around algorithmic behavior under fixed budgets rather than hardware-specific speedups.
+\paragraph{Evaluation protocol.}
+We use paired-goal evaluation: goals are generated once per seed and reused across variants.
+Budget bA uses $(\texttt{goal\_H}=9,\texttt{opt\_steps}=2,\texttt{max\_iter}=2)$ with 3 seeds.
+Budget bB uses $(12,3,3)$ with 2 seeds.
+Each run has 10 episodes, yielding 65 runs and 650 episodes total.
+We report success, model size, runtime, paired deltas (bootstrap CI), and log-derived mechanistic signals.
 
-\section{Results}
-\paragraph{Pilot and transition runs agree on a 8/4/3-bit phase pattern.}
-Table~\ref{tab:keyresults} shows consistent behavior across the pilot and paired transition runs.
-At 8-bit, FP16, uniform INT8, and mixed INT8 remain aligned in success.
-At 3-bit, both uniform and mixed variants collapse to near-zero success.
-At 4-bit, mixed precision consistently dominates uniform quantization.
-In the pilot run, mixed INT4 reaches 0.167 versus 0.083 for uniform INT4.
-In the transition run, the same ordering persists and strengthens (0.267 vs 0.067 at bA; 0.500 vs 0.200 at bB).
+\section{Main Results}
+\paragraph{A three-regime pattern appears in one run.}
+Figure~\ref{fig:frontier} and Table~\ref{tab:main} show a stable regime at 8/6 bits, a transition at 4 bits, and collapse at 3 bits.
+At budget bA, FP16, uniform INT8, mixed INT8, and uniform INT6 all reach 0.533 success.
+At budget bB, FP16 and uniform INT6 both reach 0.650.
+In contrast, all 3-bit variants are 0.0 at both budgets.
 
-\paragraph{Paired comparisons support the mixed-INT4 advantage.}
-Because transition runs share identical goal sets per seed, we can compute direct paired deltas.
-Mixed INT4 improves over uniform INT4 by +0.20 at bA (95\% CI [0.00, 0.40], 30 paired episodes) and +0.30 at bB (CI [0.00, 0.55], 20 paired episodes).
-Figure~\ref{fig:frontier} shows the frontier view by budget: the 4-bit gap remains visible while model size differs substantially.
-Figure~\ref{fig:budget} shows budget sensitivity: larger planning budget improves both FP16 and INT4 variants, but uniform INT3 remains collapsed and mixed INT4 retains an absolute advantage over uniform INT4.
+\paragraph{4-bit is allocation-sensitive.}
+At 4 bits, mixed INT4 clearly outperforms uniform INT4: 0.267 vs 0.067 at bA, and 0.500 vs 0.200 at bB.
+Paired analysis gives +0.20 at bA (95\% CI [0.00, 0.40]) and +0.30 at bB ([0.00, 0.55]).
+Sign-test p-values are 0.109 in both budgets, indicating consistent directional wins with limited non-tie sample size.
 
-\paragraph{Mechanistic and layerwise evidence suggests representation sensitivity.}
-The layerwise INT4 ablation (Appendix Figure~\ref{fig:enc_curve}) indicates that preserving more encoder precision tends to improve success, with the best mean at 100\% encoder FP16.
-The curve is not strictly monotonic at this sample size, which suggests non-uniform block sensitivity and motivates finer block-level studies.
-Mechanistic diagnostics (Appendix Figure~\ref{fig:mech}) show strong negative rank correlation between success and final-state/embedding divergence (Spearman $\rho=-0.91$ for mean state distance; $\rho=-0.78$ for visual embedding divergence), consistent with a representation-collapse interpretation near the 4-bit frontier.
+\paragraph{Asymmetric and layerwise evidence supports encoder sensitivity.}
+At bA, E6/P4 reaches 0.300 success at 73.19 MB, improving over uniform INT4 (0.067 at 68.12 MB), with paired delta +0.233 (95\% CI [0.033, 0.433]).
+By contrast, increasing predictor bits while keeping encoder at INT4 (E4/P8, E4/P6) does not match mixed INT4.
+Layerwise INT4 ablation (Appendix, Figure~\ref{fig:enc_curve}) is non-monotonic but peaks when the encoder is fully preserved (0.25 at 100\% FP16), reinforcing that encoder precision is the dominant bottleneck near the 4-bit frontier.
+
+\paragraph{Mechanistic diagnostics are consistent with representation degradation.}
+Across variants, success correlates negatively with divergence metrics from planning logs: Spearman $\rho=-0.928$ for mean state distance and $\rho=-0.708$ for visual-embedding divergence (Appendix Figure~\ref{fig:mech}).
+This does not prove causality, but it supports a plausible mechanism: low-bit encoder degradation weakens latent geometry used for goal-directed planning.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.98\linewidth]{../figures_transition/transition_run_v2/transition_frontier.pdf}
-  \caption{Success--size frontier for core variants in the paired transition study. The 8-bit regime remains close to FP16, 3-bit variants collapse, and mixed INT4 stays above uniform INT4 in both budgets. Error bars are run-level 95\% confidence intervals.}
+  \includegraphics[width=0.98\linewidth]{../figures_mixedbit_story/my_mixedbit_run/transition_frontier.pdf}
+  \caption{Success--size frontier for the paired mixed-bit study (budgets bA and bB). The 8/6-bit region is stable, the 3-bit region collapses, and the 4-bit region is allocation-sensitive (mixed above uniform). Error bars are run-level 95\% confidence intervals.}
   \label{fig:frontier}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.98\linewidth]{../figures_transition/transition_run_v2/budget_sensitivity.pdf}
-  \caption{Budget sensitivity across key variants. Increasing planner budget improves FP16 and INT4 variants, but does not recover uniform INT3; mixed INT4 remains consistently higher than uniform INT4.}
-  \label{fig:budget}
 \end{figure}
 
 \begin{table}[t]
 \centering
 \small
-\begin{tabular}{lcccc}
+\begin{tabular}{lccc}
 \toprule
-Variant & Pilot & bA & bB & Size (MB) \\
+Variant & Success bA & Success bB & Size (MB) \\
 \midrule
-FP16 & 0.500 & 0.533 & 0.650 & 204.99 \\
-Uniform INT8 & 0.500 & 0.533 & -- & 87.72 \\
-Mixed INT8 & 0.500 & 0.533 & -- & 148.31 \\
-Uniform INT4 & 0.083 & 0.067 & 0.200 & 68.12 \\
-Mixed INT4 & \textbf{0.167} & \textbf{0.267} & \textbf{0.500} & 138.84 \\
-Uniform INT3 & 0.000 & 0.000 & 0.000 & 63.23 \\
-Mixed INT3 & 0.000 & 0.000 & -- & 136.47 \\
+FP16 & 0.533 & 0.650 & 204.99 \\
+Uniform INT6 & 0.533 & 0.650 & 77.92 \\
+Mixed INT6 & 0.533 & 0.700 & 143.58 \\
+Uniform INT4 & 0.067 & 0.200 & 68.12 \\
+Mixed INT4 & \textbf{0.267} & \textbf{0.500} & 138.84 \\
+Uniform INT3 & 0.000 & 0.000 & 63.23 \\
+Mixed INT3 & 0.000 & 0.000 & 136.47 \\
 \bottomrule
 \end{tabular}
-\caption{Success-rate summary across runs and budgets. Pilot values come from the saved ten-variant sweep; bA/bB values come from the paired transition run.}
-\label{tab:keyresults}
+\caption{Core mixed-bit outcomes from \texttt{my\_mixedbit\_run}. The central effect is the mixed-vs-uniform gap at 4 bits under both planner budgets.}
+\label{tab:main}
 \end{table}
 
-\section{Discussion and Open Questions}
-The empirical pattern is clear enough to support a concrete research hypothesis: near the low-bit transition, preserving representation precision is more important than uniformly quantizing all modules.
-At the same time, the mechanism is not fully resolved.
-The budget sweep raises the first question: is the mixed-INT4 advantage mainly representational, or partly due to interaction with planner optimization depth?
-Both INT4 variants improve with larger budget, but the mixed-uniform gap persists.
-The layerwise sweep raises a second question: which encoder blocks are truly precision-critical, and are critical blocks task-dependent?
-The non-monotonic intermediate points suggest this is not a simple ``more FP16 is always better'' effect.
-The divergence diagnostics raise a third question: can explicit latent-geometry preservation objectives or calibration strategies close the uniform-INT4 gap without restoring full encoder precision?
+\section{Discussion, Limitations, and Outlook}
+The data supports a narrower claim than ``mixed is always better'': near low-bit transition points, planning quality depends strongly on where precision is allocated.
+The asymmetric results raise a practical design question for future work: can budget-constrained bit-allocation be optimized directly for planning success rather than model reconstruction error?
+The non-monotonic layerwise curve suggests a second question: which encoder blocks are precision-critical, and does that set change across environments?
+Finally, the strong divergence-success correlations motivate causal follow-ups, such as representation-preserving calibration or geometry-aware quantization objectives.
 
-\section{Limitations}
-This is a single-environment study (Wall) with one pretrained checkpoint and moderate seed counts.
-The paired confidence intervals for key deltas remain wide and include zero at this sample size.
-We evaluate only weight-only quantization and do not test activation quantization, retraining, or hardware-fused low-bit kernels.
-Therefore, the strongest claims are about robustness trends and module sensitivity under controlled settings, not universal optimality across tasks or hardware.
+This study is limited to one environment and one checkpoint family.
+Confidence intervals on key paired effects still include zero because the paired sample is modest.
+We evaluate weight-only quantization without activation quantization, retraining, or hardware-fused low-bit kernels.
+Therefore, conclusions should be read as robust empirical hypotheses for efficient spatial reasoning, not universal laws.
 
 \section{Conclusion}
-Across a pilot sweep and a larger paired transition study, DINO-WM planning shows a repeatable 8/4/3-bit phase structure and a consistent mixed-INT4 advantage over uniform INT4.
-These results provide a concrete, testable direction for efficient spatial reasoning: design quantization policies that prioritize representation precision near low-bit operating frontiers.
+In a paired mixed-bit study on DINO-WM planning, we find that low-bit behavior is structured: 8/6 bits are mostly safe, 3 bits collapse, and 4 bits require careful bit allocation.
+The most consistent effect is mixed INT4 outperforming uniform INT4 across two planner budgets.
+These findings make a concrete case for module-aware quantization policies in world-model planning and define targeted follow-up questions for the ES-Reasoning agenda.
 
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
 
 \appendix
 \clearpage
-\section{Additional Results and Diagnostics}
+\section{Appendix: Extended Results with Context}
 
-\subsection{Paired Effect Estimates}
+\subsection{How to Read the Appendix}
+The main paper establishes the core claim from one frontier figure and one compact table.
+This appendix provides supporting analyses that answer three reviewer-facing questions:
+\textbf{(i)} Is the 4-bit effect robust to planner budget?
+\textbf{(ii)} Does evidence localize precision sensitivity to the encoder?
+\textbf{(iii)} Are observed gains consistent with a representation-degradation mechanism?
+
+\subsection{Paired Mixed-Bit Effect Table}
+Table~\ref{tab:paired} reports paired deltas for the most relevant comparisons.
+The first two rows are the primary claim (mixed INT4 vs uniform INT4 at bA and bB).
+The asymmetric rows test whether increasing encoder bits or predictor bits is more useful at similar model sizes.
+
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lcccccc}
+\begin{tabular}{lcccc}
 \toprule
-Budget & $n$ pairs & Mixed INT4 & Uniform INT4 & Delta & CI$_{95\%}$ (Delta) \\
+Comparison & $n$ pairs & Delta & 95\% CI & Sign-test $p$ \\
 \midrule
-bA & 30 & 0.267 & 0.067 & +0.20 & [0.00, 0.40] \\
-bB & 20 & 0.500 & 0.200 & +0.30 & [0.00, 0.55] \\
+bA: mixed\_int4 - uniform\_int4 & 30 & +0.200 & [0.000, 0.400] & 0.109 \\
+bB: mixed\_int4 - uniform\_int4 & 20 & +0.300 & [0.000, 0.550] & 0.109 \\
+bA: enc6\_pred4 - uniform\_int4 & 30 & +0.233 & [0.033, 0.433] & 0.065 \\
+bA: enc4\_pred8 - mixed\_int4 & 30 & -0.133 & [-0.333, 0.067] & 0.344 \\
 \bottomrule
 \end{tabular}
-\caption{Paired-goal mixed-vs-uniform INT4 deltas from transition\_run\_v2.}
+\caption{Paired effect estimates from the consolidated mixed-bit pairwise statistics file.}
 \label{tab:paired}
 \end{table}
 
-\subsection{Transition-Run Summary Tables}
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Variant (bA) & Success & CI$_{95\%}$ & Time (s) & Size (MB) \\
-\midrule
-FP16 & 0.533 & [0.468, 0.599] & 49.66 & 204.99 \\
-Uniform INT8 & 0.533 & [0.468, 0.599] & 50.44 & 87.72 \\
-Mixed INT8 & 0.533 & [0.468, 0.599] & 48.29 & 148.31 \\
-Uniform INT4 & 0.067 & [0.001, 0.132] & 46.54 & 68.12 \\
-Mixed INT4 & 0.267 & [0.201, 0.332] & 48.36 & 138.84 \\
-Uniform INT3 & 0.000 & [0.000, 0.000] & 41.10 & 63.23 \\
-Mixed INT3 & 0.000 & [0.000, 0.000] & 41.53 & 136.47 \\
-\bottomrule
-\end{tabular}
-\caption{Core transition-study results at budget bA (3 seeds).}
-\label{tab:bAcore}
-\end{table}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-Variant (bB) & Success & CI$_{95\%}$ & Time (s) & Size (MB) \\
-\midrule
-FP16 & 0.650 & [0.552, 0.748] & 124.45 & 204.99 \\
-Uniform INT4 & 0.200 & [0.200, 0.200] & 130.05 & 68.12 \\
-Mixed INT4 & 0.500 & [0.304, 0.696] & 141.44 & 138.84 \\
-Uniform INT3 & 0.000 & [0.000, 0.000] & 135.27 & 63.23 \\
-\bottomrule
-\end{tabular}
-\caption{Core transition-study results at budget bB (2 seeds).}
-\label{tab:bBcore}
-\end{table}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lccc}
-\toprule
-Encoder FP16 fraction & Success (bA) & CI$_{95\%}$ & Size (MB) \\
-\midrule
-0\%   & 0.10 & [0.100, 0.100] & 68.12 \\
-25\%  & 0.05 & [0.000, 0.148] & 85.80 \\
-50\%  & 0.15 & [0.052, 0.248] & 103.48 \\
-75\%  & 0.05 & [0.000, 0.148] & 121.16 \\
-100\% & 0.25 & [0.152, 0.348] & 138.84 \\
-\bottomrule
-\end{tabular}
-\caption{INT4 encoder-retention ablation (predictor fixed at INT4, budget bA).}
-\label{tab:layerwise}
-\end{table}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lc}
-\toprule
-Metric vs Success & Spearman $\rho$ \\
-\midrule
-Mean state distance & -0.914 \\
-Mean visual-embedding divergence & -0.779 \\
-Mean proprio-embedding divergence & -0.710 \\
-\bottomrule
-\end{tabular}
-\caption{Mechanistic correlations from transition\_run\_v2.}
-\label{tab:mechcorr}
-\end{table}
+\subsection{Budget Robustness Context}
+Figure~\ref{fig:budget} shows that the mixed-vs-uniform INT4 gap persists when planner budget increases from bA to bB.
+This reduces the likelihood that the observed gap is only an artifact of one optimization budget.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.95\linewidth]{../figures_transition/transition_run_v2/encoder_retention_curve.pdf}
-  \caption{INT4 layerwise encoder-retention curve at budget bA. Keeping more encoder blocks in FP16 tends to improve success, with non-monotonic intermediate behavior.}
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/budget_sensitivity.pdf}
+  \caption{Budget robustness view. Uniform INT3 remains collapsed; mixed INT4 remains above uniform INT4 at both budgets.}
+  \label{fig:budget}
+\end{figure}
+
+\subsection{Encoder-Localization Context}
+Figure~\ref{fig:enc_curve} gives a coarse localization test: with predictor fixed at INT4, preserving more encoder precision improves peak success, although intermediate points are non-monotonic.
+This supports the main claim while motivating finer block-level studies.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/encoder_retention_curve.pdf}
+  \caption{Encoder-retention sweep (INT4 predictor). The highest mean success occurs when encoder precision is fully preserved.}
   \label{fig:enc_curve}
 \end{figure}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.95\linewidth]{../figures_transition/transition_run_v2/mechanistic_success_vs_divergence.pdf}
-  \caption{Mechanistic diagnostic: variants with higher visual-embedding divergence tend to have lower planning success.}
-  \label{fig:mech}
-\end{figure}
+\subsection{Difficulty-Conditioned Context}
+Figure~\ref{fig:difficulty} bins episodes by initial goal distance.
+Mixed INT4 improves over uniform INT4 across bins, suggesting the 4-bit allocation effect is not confined to a single difficulty slice.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.95\linewidth]{../figures_transition/transition_run_v2/difficulty_conditioned_success.pdf}
-  \caption{Difficulty-conditioned success in budget bA (difficulty terciles from initial goal distance). Uniform INT4 is brittle across bins; mixed INT4 improves success across bins relative to uniform INT4.}
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/difficulty_conditioned_success.pdf}
+  \caption{Difficulty-conditioned success at bA (paired episodes). Mixed INT4 consistently improves over uniform INT4.}
   \label{fig:difficulty}
 \end{figure}
 
-\clearpage
-\subsection{Pilot-Run Replication Figures (Saved Snapshot)}
+\subsection{Mechanistic Context}
+Figure~\ref{fig:mech} links variant-level success to divergence metrics extracted from planning logs.
+The negative trend supports a representation-degradation explanation for low-bit failure near the 4-bit boundary.
+
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.95\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_success_bars.pdf}
-  \caption{Pilot ten-variant sweep (saved snapshot). This run first exposed the same 8/4/3-bit phase pattern later revalidated in the paired transition study.}
-  \label{fig:pilotbars}
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/mechanistic_success_vs_divergence.pdf}
+  \caption{Mechanistic scatter: larger visual-embedding divergence is associated with lower planning success.}
+  \label{fig:mech}
+\end{figure}
+
+\subsection{Mixed-Bit Maps for Hypothesis Generation}
+The next two figures are exploratory and hypothesis-generating.
+Figure~\ref{fig:ladder} visualizes the uniform/mixed bit ladder directly; Figure~\ref{fig:asym} maps asymmetric encoder/predictor allocations.
+Together they motivate a budgeted bit-allocation optimization problem for future work.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/appendix_bit_ladder.pdf}
+  \caption{Uniform-vs-mixed bit ladder across budgets. The 4-bit region is where allocation effects are largest.}
+  \label{fig:ladder}
 \end{figure}
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.95\linewidth]{../figures_bitsweep_h9_mixed/bitsweep_frontier.pdf}
-  \caption{Pilot success--size frontier over ten variants. Mixed INT4 is above uniform INT4 while 3-bit variants collapse.}
-  \label{fig:pilotfrontier}
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/appendix_asymmetric_allocation_map.pdf}
+  \caption{Asymmetric allocation map at bA. Higher encoder precision at fixed predictor precision is generally more beneficial than the reverse.}
+  \label{fig:asym}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures_mixedbit_story/my_mixedbit_run/appendix_pairwise_deltas.pdf}
+  \caption{Forest plot of paired deltas with bootstrap confidence intervals for key comparisons.}
+  \label{fig:forest}
 \end{figure}
 
 \end{document}

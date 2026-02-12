@@ -55,16 +55,15 @@ def main() -> None:
     fig_root = resolve_path(cfg, key="figures_root", run_name=args.run_name)
     fig_root.mkdir(parents=True, exist_ok=True)
 
-    # Frontier figure (core variants only; layerwise variants are shown separately).
-    core_frontier_variants = [
-        "fp16",
-        "uniform_int8",
-        "mixed_int8",
-        "uniform_int4",
-        "mixed_int4",
-        "uniform_int3",
-        "mixed_int3",
-    ]
+    # Frontier figure (core uniform/mixed bit ladders; layerwise variants shown separately).
+    ladder_variants = sorted(
+        [
+            str(v)
+            for v in df["variant"].dropna().unique()
+            if re.match(r"^(uniform|mixed)_int\d+$", str(v))
+        ]
+    )
+    core_frontier_variants = ["fp16"] + ladder_variants
     frontier_df = df[df["variant"].isin(core_frontier_variants)].copy()
     if frontier_df.empty:
         frontier_df = df.copy()
@@ -114,7 +113,11 @@ def main() -> None:
     plt.close(fig)
 
     # Budget sensitivity for key variants.
-    key_variants = ["fp16", "uniform_int4", "mixed_int4", "uniform_int3", "mixed_int3"]
+    key_variants = [
+        v
+        for v in ["fp16", "uniform_int6", "mixed_int6", "uniform_int4", "mixed_int4", "uniform_int3", "mixed_int3"]
+        if v in set(df["variant"].astype(str))
+    ]
     plot_df = df[df["variant"].isin(key_variants)].copy()
     if not plot_df.empty and "budget_id" in plot_df.columns:
         fig, ax = plt.subplots(figsize=(7.2, 4.0))

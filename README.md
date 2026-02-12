@@ -38,7 +38,7 @@ This repository contains a fast, reproducible pipeline for:
    ```bash
    export DATASET_DIR=/Users/suraj/Downloads
    # Then set dino.ckpt_base_path in config to:
-   # /Users/suraj/Downloads/outputs/wall_single/checkpoints/model_latest.pth
+   # /Users/suraj/Downloads
    ```
 3. Configure paths in `configs/experiment_config.yaml`.
 4. Build variants:
@@ -117,6 +117,33 @@ Key outputs:
 - `figures_transition/my_transition_run/transition_frontier.pdf`
 - `figures_transition/my_transition_run/budget_sensitivity.pdf`
 - `figures_transition/my_transition_run/encoder_retention_curve.pdf`
+
+## Mixed-Bit Story Pipeline (No CoreML, Paper-Focused)
+
+Use this for the stronger mixed-bit framing (uniform vs mixed at 8/6/4/3 bits, asymmetric encoder/predictor allocations, budget robustness, and layerwise encoder retention):
+
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml my_mixedbit_run
+```
+
+Resume safely without overwriting completed stages by passing a resume tag:
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml my_mixedbit_run resume_try1
+```
+
+This writes new stage outputs under:
+- `results/wall_mixedbit_story/my_mixedbit_run/stage/...` (initial run)
+- `results/wall_mixedbit_story/my_mixedbit_run/resume/resume_try1/...` (resumed stages)
+
+Key outputs:
+- `results/my_mixedbit_run/summary.csv`
+- `results/my_mixedbit_run/summary_grouped.csv`
+- `results/my_mixedbit_run/mixedbit_pairwise_stats.csv`
+- `results/my_mixedbit_run/mixedbit_pairwise_stats.json`
+- `notes/my_mixedbit_run/mixedbit_story_notes.md`
+- `figures_mixedbit_story/my_mixedbit_run/appendix_bit_ladder.pdf`
+- `figures_mixedbit_story/my_mixedbit_run/appendix_asymmetric_allocation_map.pdf`
+- `figures_mixedbit_story/my_mixedbit_run/appendix_pairwise_deltas.pdf`
 
 Note: ES-Reasoning Tiny paper formatting can be targeted to 5 pages including references, with unlimited appendix for additional ablations.
 
