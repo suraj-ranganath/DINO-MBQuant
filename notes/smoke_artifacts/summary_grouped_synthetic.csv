@@ -1,4 +1,0 @@
-variant,opt_steps,success_rate_mean,success_rate_std,avg_time_mean,avg_time_std,peak_mem_mean,peak_mem_std,model_size_mean,model_size_std,num_runs
-fp16,30,0.7000000000000001,,0.12,,1024.0,,890.0,,1
-mixed_int8,30,0.6000000000000001,,0.1,,870.0,,560.0,,1
-uniform_int8,30,0.4,,0.09,,850.0,,500.0,,1

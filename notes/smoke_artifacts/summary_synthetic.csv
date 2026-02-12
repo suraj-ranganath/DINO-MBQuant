@@ -1,4 +1,0 @@
-variant,opt_steps,seed,success_rate,avg_plan_time_seconds,peak_gpu_mem_mb,model_size_mb,run_id,source_output_dir,timestamp_utc
-fp16,30,0,0.7000000000000001,0.12,1024,890,fp16_opt30_seed0,results/wall/fp16/opt_steps_30/seed_0,2026-02-09T00:00:00Z
-mixed_int8,30,0,0.6000000000000001,0.1,870,560,mixed_opt30_seed0,results/wall/mixed_int8/opt_steps_30/seed_0,2026-02-09T00:00:00Z
-uniform_int8,30,0,0.4,0.09,850,500,uniform_opt30_seed0,results/wall/uniform_int8/opt_steps_30/seed_0,2026-02-09T00:00:00Z

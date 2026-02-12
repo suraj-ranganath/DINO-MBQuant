@@ -1,120 +1,153 @@
-# EAI_DINO: ES-Reasoning Tiny Paper MVP
+# EAI_DINO
 
-This repository contains a fast, reproducible pipeline for:
-- running DINO-WM Wall planning experiments across FP16 / uniform INT8 / mixed INT8 variants,
-- aggregating metrics and producing paper-ready figures,
-- generating replay artifacts and a Mac-friendly Streamlit demo,
-- compiling an anonymized 4-page Tiny paper (ICLR 2026 workshop format).
+Mixed-bit quantization experiments for efficient world-model planning, centered on DINO-WM and the ES-Reasoning workshop workflow.
 
-## Quick Start
+This repo provides:
+- experiment runners for uniform, mixed, asymmetric, and layerwise quantization variants,
+- reproducible run orchestration scripts (fresh run + resume),
+- aggregation/statistics/figure pipelines for paper-ready outputs,
+- LaTeX paper sources and release bundling.
 
-1. Install Python deps:
-   ```bash
-   # Use Python 3.10 or 3.11 for DINO-WM compatibility.
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-   Or use one-command Mac setup:
-   ```bash
-   bash scripts/setup_mac_env.sh python3.11 .venv311
-   source .venv311/bin/activate
-   ```
-   For Mac local experiment runs:
-   ```bash
-   pip install -r requirements-mac.txt
-   ```
-   For GPU quantization runs on Nautilus:
-   ```bash
-   pip install -r requirements-gpu.txt
-   ```
-2. Configure paths in `configs/experiment_config.yaml`.
-3. Build variants:
-   ```bash
-   python -m experiments.build_variants --config configs/experiment_config.yaml
-   ```
-4. Run FP16 baseline only (optional gate check):
-   ```bash
-   python -m experiments.run_baseline_wall --config configs/experiment_config.yaml
-   ```
-5. Run grid:
-   ```bash
-   python -m experiments.run_wall_grid --config configs/experiment_config.yaml
-   ```
-6. Aggregate + figures:
-   ```bash
-   python -m experiments.aggregate --config configs/experiment_config.yaml
-   python -m experiments.make_figures --config configs/experiment_config.yaml
-   ```
-7. Export demo artifacts + launch demo:
-   ```bash
-   python -m experiments.export_demo_artifacts --config configs/experiment_config.yaml
-   streamlit run demo/app.py
-   ```
-8. Prepare paper scaffold and compile:
-   ```bash
-   bash scripts/setup_paper.sh
-   bash scripts/compile_paper.sh
-   ```
+## Project Goal
 
-## Mac-Only 6-7 Hour Path
+Investigate **where bits matter** in world-model planning under efficiency constraints:
+- Is performance driven mostly by total bitwidth?
+- Or by how precision is allocated across encoder vs predictor?
 
-Use this when running only on a local MacBook (no CUDA):
+Current experiments focus on DINO-WM on Wall with paired-goal evaluation and mixed-bit ablations.
 
-1. Configure Mac preset:
-   - set `dino.ckpt_base_path` in `configs/experiment_config.mac.yaml`
-   - set `export DATASET_DIR=/ABS/PATH/TO/data`
-   - set `export DINO_WM_DEVICE=mps` (or `cpu` if MPS op support is problematic)
-2. Run preflight + pipeline:
-   ```bash
-   bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml my_run_name
-   ```
-   Each run is isolated under run-specific folders (for example, `results/.../my_run_name`, `figures/.../my_run_name`, `notes/my_run_name/...`), so new runs do not overwrite old results.
-3. Launch replay demo:
-   ```bash
-   streamlit run demo/app.py
-   ```
-4. Build release artifacts:
-   ```bash
-   bash scripts/build_release_bundle.sh
-   ```
-5. Use `notes/paper_numbers.md` to quickly fill result text in the tiny paper.
+## Repository Layout
 
-## Transition-Study Pipeline (Paired + Budget + Mechanistic)
+Core code:
+- `configs/` experiment configurations
+- `experiments/` Python modules for runs, aggregation, analysis, and plotting
+- `scripts/` setup/run/resume/release shell entrypoints
+- `paper/` LaTeX sources and compiled paper output
+- `demo/` optional replay viewer
+- `third_party_dino_wm/` upstream dependency
 
-Use this for the stronger workshop narrative (paired evaluation, budget sensitivity, encoder-retention at INT4):
+Generated artifacts (expected after runs):
+- `results/`
+- `figures*/`
+- `logs/`
+- `release/`
+- `saved_runs/`
+
+## Quick Start (Mac)
+
+1. Setup environment:
 
 ```bash
-bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml my_transition_run
+bash scripts/setup_mac_env.sh python3.11 .venv311
+source .venv311/bin/activate
 ```
 
-Key outputs:
-- `results/my_transition_run/summary.csv`
-- `results/my_transition_run/summary_grouped.csv`
-- `results/my_transition_run/episode_outcomes.csv`
-- `results/my_transition_run/paired_delta_bA_mixed_vs_uniform_int4.json`
-- `results/my_transition_run/mechanistic_correlations.json`
-- `figures_transition/my_transition_run/transition_frontier.pdf`
-- `figures_transition/my_transition_run/budget_sensitivity.pdf`
-- `figures_transition/my_transition_run/encoder_retention_curve.pdf`
-
-Note: ES-Reasoning Tiny paper formatting can be targeted to 5 pages including references, with unlimited appendix for additional ablations.
-
-## GPU Quantization Pipeline (CUDA + bitsandbytes)
-
-Use this on a CUDA machine (e.g., A6000/A100/RTX 5090) to run real INT8/INT4 weight-only quantization:
+2. Set environment:
 
 ```bash
-pip install -r requirements-gpu.txt
-export DATASET_DIR=/ABS/PATH/TO/data
-export DINO_WM_DEVICE=cuda
-bash scripts/run_transition_pipeline_gpu.sh configs/experiment_config.gpu_transition_study.yaml my_transition_gpu_run
+export DATASET_DIR=/ABS/PATH/TO/DATA_ROOT
+export DINO_WM_DEVICE=mps   # or cpu
 ```
 
-This uses bitsandbytes for INT8/INT4 and falls back to a lightweight weight-only quantizer for INT3/unsupported cases.
+3. Configure checkpoints in (recommended):
+- `configs/experiment_config.mac_mixedbit_story.yaml`
 
-## Notes
-- Use GPU (A6000/A100) for experiment runs.
-- Use Mac for replay demo and paper finalization.
-- Nautilus bootstrap helper: `bash scripts/setup_nautilus.sh <work_dir> <ckpt_base_path> <dataset_dir>`.
-- Mac runbook: `scripts/mac_6h_runbook.md`.
+Required fields:
+
+```yaml
+dino:
+  ckpt_base_path: /ABS/PATH/TO/CHECKPOINT_ROOT
+  model_name: wall_single
+  model_epoch: latest
+```
+
+4. Validate setup:
+
+```bash
+bash scripts/mac_preflight.sh configs/experiment_config.mac_mixedbit_story.yaml
+```
+
+5. Run main mixed-bit pipeline:
+
+```bash
+RUN_NAME=mixedbit_$(date +%Y%m%d_%H%M%S)
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml "$RUN_NAME" 2>&1 | tee "logs/${RUN_NAME}.log"
+```
+
+## Main Workflows
+
+Mixed-bit story (recommended):
+
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml <run_name>
+```
+
+Resume mixed-bit run:
+
+```bash
+bash scripts/run_mixedbit_story.sh configs/experiment_config.mac_mixedbit_story.yaml <run_name> <resume_tag>
+```
+
+Transition study:
+
+```bash
+bash scripts/run_transition_pipeline.sh configs/experiment_config.mac_transition_study.yaml <run_name>
+```
+
+Baseline/grid:
+
+```bash
+bash scripts/run_mac_pipeline.sh configs/experiment_config.mac.yaml <run_name>
+```
+
+## Paper + Release
+
+Compile canonical submission PDF:
+
+```bash
+bash scripts/compile_paper.sh
+```
+
+Output:
+- `paper/paper.pdf`
+
+Build release bundle:
+
+```bash
+bash scripts/build_release_bundle.sh
+```
+
+Outputs:
+- `release/paper.pdf`
+- `release/supplemental.zip`
+
+## Dataset / External Links
+
+- DINO-WM assets (dataset + checkpoints):  
+  `https://osf.io/bmw48/?view_only=a56a296ce3b24cceaf408383a175ce28`
+- DINO-WM repo: `https://github.com/gaoyuezhou/dino_wm`
+- DINO-WM paper: `https://arxiv.org/abs/2411.04983`
+- ES-Reasoning workshop: `https://sites.google.com/ucsd.edu/efficient-spatial-reasoning/home?authuser=0`
+- CFP: `https://sites.google.com/ucsd.edu/efficient-spatial-reasoning/call-for-papers`
+- OpenReview venue: `https://openreview.net/group?id=ICLR.cc%2F2026%2FWorkshop%2FES-Reasoning`
+
+## Housekeeping / Repo Hygiene
+
+Archive legacy artifacts out of repo root (without deleting your history):
+
+```bash
+bash scripts/archive_legacy_artifacts.sh
+```
+
+This moves older figures/logs/notes to:
+- `saved_runs/archive/<timestamp>/...`
+
+## Troubleshooting
+
+If you see `Config not found: configs/`, you passed a directory instead of a YAML file.
+
+If MPS fails on an op/kernel:
+
+```bash
+export DINO_WM_DEVICE=cpu
+```

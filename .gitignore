@@ -3,13 +3,22 @@ __pycache__/
 *.pyc
 .venv/
 .venv311/
+.DS_Store
+**/.DS_Store
+__MACOSX/
 
 # Artifacts
 results/
+logs/
+logs_transition_run_*.txt
+saved_runs/
+release/
 figures/*.pdf
 figures/*.png
+figures_*/
 demo/demo_artifacts/*
-release/*.zip
+demo/demo_artifacts_mixedbit_story/*
+demo/demo_artifacts_transition/*
 
 # DINO-WM outputs
 third_party_dino_wm/
@@ -27,4 +36,4 @@ paper/*.out
 paper/*.pdfsync
 paper/*.synctex.gz
 paper/iclr2026.zip
-saved_runs/
+paper/*.pdf
